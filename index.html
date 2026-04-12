@@ -3,123 +3,139 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RIOT | MAP SYSTEM</title>
+    <title>RIOT | REAL-TIME MULTIPLAYER</title>
+    <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            background: #121212; 
-            overflow: hidden; 
-            font-family: 'Inter', sans-serif;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-        }
-
+        body { background: #0f0f0f; overflow: hidden; font-family: 'Inter', sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; }
+        
         #game-wrapper {
             position: relative;
-            width: 800px;
-            height: 600px;
-            background: #1a1a1a;
-            border: 2px solid #333;
+            width: 100vw;
+            height: 100vh;
+            background: #111;
             overflow: hidden;
         }
 
-        #player {
+        .player {
             position: absolute;
-            width: 20px;
-            height: 20px;
-            background: #bb9af7;
+            width: 25px;
+            height: 25px;
             border-radius: 50%;
-            box-shadow: 0 0 15px rgba(187, 154, 247, 0.5);
+            transition: top 0.1s linear, left 0.1s linear;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
         }
 
-        /* Mini Map Styles */
         #minimap {
             position: absolute;
-            bottom: 15px;
-            right: 15px;
+            bottom: 20px;
+            right: 20px;
             width: 150px;
             height: 112px;
             background: rgba(0, 0, 0, 0.8);
-            border: 1px solid #bb9af7;
-            display: none; /* Hidden by default */
-            border-radius: 4px;
+            border: 1px solid #444;
+            border-radius: 8px;
+            display: none;
         }
 
-        #minimap-player {
+        .m-dot {
             position: absolute;
-            width: 4px;
-            height: 4px;
-            background: #fff;
+            width: 5px;
+            height: 5px;
             border-radius: 50%;
-        }
-
-        .controls-hint {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            color: #555;
-            font-size: 0.7rem;
-            letter-spacing: 1px;
         }
     </style>
 </head>
 <body>
 
     <div id="game-wrapper">
-        <div class="controls-hint">WASD TO MOVE | M FOR MINI-MAP</div>
-        <div id="player"></div>
-        
-        <div id="minimap">
-            <div id="minimap-player"></div>
-        </div>
+        <div id="minimap"></div>
     </div>
 
     <script>
-        const player = document.getElementById('player');
-        const minimap = document.getElementById('minimap');
-        const mPlayer = document.getElementById('minimap-player');
+        // --- CONFIG ---
+        const ABLY_KEY = 'INSERT_ABLY_KEY_HERE'; 
+        const ably = new Ably.Realtime(ABLY_KEY);
+        const channel = ably.channels.get('game-world');
         const wrapper = document.getElementById('game-wrapper');
+        const minimap = document.getElementById('minimap');
 
-        // Game State
-        let pos = { x: 390, y: 290 };
-        const speed = 5;
-        const keys = {};
-        let minimapVisible = false;
+        let myId = Math.random().toString(36).substring(7);
+        let myColor = `hsl(${Math.random() * 360}, 70%, 60%)`;
+        let players = {};
+        let keys = {};
+        let myPos = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+        let mVisible = false;
 
-        // Input Listeners
+        // --- MULTIPLAYER LOGIC ---
+        // Listen for other players moving
+        channel.subscribe('update', (msg) => {
+            if (msg.data.id === myId) return; // Skip if it's me
+            updatePlayerData(msg.data);
+        });
+
+        // Handle player leaving
+        channel.presence.subscribe('leave', (member) => {
+            const el = document.getElementById(member.clientId);
+            if (el) el.remove();
+        });
+
+        function updatePlayerData(data) {
+            if (!players[data.id]) {
+                // Create new player circle
+                const newPlayer = document.createElement('div');
+                newPlayer.id = data.id;
+                newPlayer.className = 'player';
+                newPlayer.style.backgroundColor = data.color;
+                wrapper.appendChild(newPlayer);
+                players[data.id] = data;
+            }
+            const el = document.getElementById(data.id);
+            el.style.left = data.x + 'px';
+            el.style.top = data.y + 'px';
+        }
+
+        // --- INPUT & MOVEMENT ---
         window.addEventListener('keydown', (e) => {
             keys[e.key.toLowerCase()] = true;
-            
-            // Toggle Minimap
             if (e.key.toLowerCase() === 'm') {
-                minimapVisible = !minimapVisible;
-                minimap.style.display = minimapVisible ? 'block' : 'none';
+                mVisible = !mVisible;
+                minimap.style.display = mVisible ? 'block' : 'none';
             }
         });
         window.addEventListener('keyup', (e) => keys[e.key.toLowerCase()] = false);
 
-        function update() {
-            // Movement Logic
-            if (keys['w'] && pos.y > 0) pos.y -= speed;
-            if (keys['s'] && pos.y < 580) pos.y += speed;
-            if (keys['a'] && pos.x > 0) pos.x -= speed;
-            if (keys['d'] && pos.x < 780) pos.x += speed;
+        function gameLoop() {
+            let moved = false;
+            if (keys['w'] && myPos.y > 0) { myPos.y -= 7; moved = true; }
+            if (keys['s'] && myPos.y < window.innerHeight - 25) { myPos.y += 7; moved = true; }
+            if (keys['a'] && myPos.x > 0) { myPos.x -= 7; moved = true; }
+            if (keys['d'] && myPos.x < window.innerWidth - 25) { myPos.x += 7; moved = true; }
 
-            // Update Player Visual
-            player.style.left = pos.x + 'px';
-            player.style.top = pos.y + 'px';
+            if (moved) {
+                // Update local visual
+                updatePlayerData({ id: myId, x: myPos.x, y: myPos.y, color: myColor });
+                // Broadcast to everyone else
+                channel.publish('update', { id: myId, x: myPos.x, y: myPos.y, color: myColor });
+            }
 
-            // Update Minimap Player Visual
-            // Scale is (150/800) for X and (112/600) for Y
-            mPlayer.style.left = (pos.x * (150 / 800)) + 'px';
-            mPlayer.style.top = (pos.y * (112 / 600)) + 'px';
+            // Update Minimap dots
+            if (mVisible) {
+                minimap.innerHTML = '';
+                [...Object.values(players), {id: myId, x: myPos.x, y: myPos.y, color: '#fff'}].forEach(p => {
+                    const dot = document.createElement('div');
+                    dot.className = 'm-dot';
+                    dot.style.left = (p.x / window.innerWidth * 150) + 'px';
+                    dot.style.top = (p.y / window.innerHeight * 112) + 'px';
+                    dot.style.backgroundColor = p.color;
+                    minimap.appendChild(dot);
+                });
+            }
 
-            requestAnimationFrame(update);
+            requestAnimationFrame(gameLoop);
         }
 
-        update();
+        gameLoop();
     </script>
 </body>
 </html>
