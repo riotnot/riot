@@ -3,71 +3,174 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Countdown | Managed</title>
+    <title>NEON POP | GLOBAL</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
-        body { background: #000; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; }
-        
-        .timer-display { font-size: 5rem; font-weight: 900; letter-spacing: -2px; margin: 20px 0; font-variant-numeric: tabular-nums; }
-        
-        /* Admin Panel - Hidden by default */
-        #admin-panel { 
-            display: none; 
-            background: rgba(255, 255, 255, 0.05); 
-            padding: 20px; 
-            border-radius: 15px; 
-            margin-top: 30px; 
-            border: 1px solid #00ff88;
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Orbitron', sans-serif; }
+        body { 
+            background: #050505; 
+            height: 100vh; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            overflow: hidden;
+            color: white;
         }
-        
-        input, button { background: #222; color: #fff; border: 1px solid #444; padding: 8px; border-radius: 5px; margin: 5px; cursor: pointer; }
-        button:hover { background: #00ff88; color: #000; }
+
+        #stats { position: absolute; top: 20px; text-align: center; pointer-events: none; }
+        .glitch { font-size: 1.2rem; color: #00f3ff; text-shadow: 0 0 10px #00f3ff; letter-spacing: 3px; }
+
+        /* The Neon Ball */
+        #ball-container { position: relative; cursor: crosshair; transition: transform 0.1s; }
+        #ball-container:active { transform: scale(0.9); }
+
+        #ball {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #fff, #ff00ff);
+            box-shadow: 0 0 50px #ff00ff, inset 0 0 30px #000;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .popped { transform: scale(3) !important; opacity: 0 !important; }
+
+        /* Admin Panel */
+        #admin-panel {
+            display: none;
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            border: 2px solid #00f3ff;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 0 30px rgba(0, 243, 255, 0.3);
+            z-index: 100;
+        }
+
+        input { background: #111; border: 1px solid #00f3ff; color: #00f3ff; padding: 10px; margin: 10px 0; width: 100%; outline: none; }
+        button { background: #00f3ff; border: none; padding: 10px 20px; cursor: pointer; font-weight: bold; width: 100%; }
     </style>
 </head>
 <body>
 
-    <h1 id="header">COUNTDOWN</h1>
-    <div class="timer-display" id="timer">00:00:00</div>
+    <div id="stats">
+        <div class="glitch">GLOBAL POPS: <span id="pop-count">0</span></div>
+        <div style="font-size: 0.8rem; opacity: 0.6;">HP: <span id="current-hp">?</span> / <span id="max-hp">?</span></div>
+    </div>
+
+    <div id="ball-container" onclick="handleButtonClick()">
+        <div id="ball"></div>
+    </div>
 
     <div id="admin-panel">
-        <p style="color: #00ff88; font-size: 0.8rem; margin-bottom: 10px;">ADMIN CONTROLS</p>
-        <input type="number" id="minutesInput" placeholder="Minutes">
-        <button onclick="adjustTimer('add')">Add Time</button>
-        <button onclick="setTimer()">Set Exact</button>
-        <button onclick="togglePause()">Pause/Play</button>
+        <h2 style="color: #00f3ff; font-size: 1rem; margin-bottom: 10px;">ADMIN TERMINAL</h2>
+        <label>SET HP OVERRIDE:</label>
+        <input type="number" id="hp-input" placeholder="Enter Health...">
+        <button onclick="saveAdminSettings()">ACTIVATE OVERRIDE</button>
+        <p style="font-size: 0.6rem; margin-top: 10px; color: #ff00ff;">PRESS '0' THREE TIMES TO EXIT</p>
     </div>
 
     <script>
-        const BIN_ID = "YOUR_BIN_ID_HERE";
-        const API_KEY = "YOUR_API_KEY_HERE";
-        
-        const urlParams = new URLSearchParams(window.location.search);
-        const isAdmin = urlParams.get('admin') === 'riot';
+        let globalClicks = 0;
+        let globalPops = 0;
+        let maxHP = 1;
+        let currentHP = 1;
+        let zeroCount = 0;
+        let isRespawning = false;
 
-        if (isAdmin) { document.getElementById('admin-panel').style.display = 'block'; }
+        const ball = document.getElementById('ball');
+        const popDisplay = document.getElementById('pop-count');
+        const hpDisplay = document.getElementById('current-hp');
+        const maxDisplay = document.getElementById('max-hp');
 
-        async function updateTimer() {
-            // In a real app, you'd fetch the JSONbin data here
-            // For now, let's look at the local countdown logic
-            setInterval(() => {
-                const now = new Date().getTime();
-                const distance = 1744473600000 - now; // Replace with your end time
-
-                const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-                const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-
-                document.getElementById("timer").innerHTML = hours + "h " + minutes + "m " + seconds + "s ";
-            }, 1000);
+        // 1. Sync Logic (Using CounterAPI for Global State)
+        async function syncGame() {
+            try {
+                const res = await fetch('https://api.counterapi.dev/v1/riotnot/neon-pop/up');
+                const data = await res.json();
+                globalClicks = data.count;
+                updateGameLogic();
+            } catch (e) { console.error("Sync Error"); }
         }
 
-        // Admin Functions
-        async function adjustTimer(type) {
-            alert("This would send a request to your JSONbin to update the time for EVERYONE.");
-            // Logic: Fetch current Bin -> Add Minutes -> PUT back to Bin
+        function updateGameLogic() {
+            // Logic: Calculate current pop cycle
+            // The health increases by 1 every time it's popped
+            let tempClicks = globalClicks;
+            let cycle = 1;
+            
+            while (tempClicks >= cycle) {
+                tempClicks -= cycle;
+                cycle++;
+            }
+
+            globalPops = cycle - 1;
+            currentHP = cycle - tempClicks;
+            maxHP = cycle;
+
+            popDisplay.innerText = globalPops;
+            hpDisplay.innerText = currentHP;
+            maxDisplay.innerText = maxHP;
+
+            // Visual feedback - glows harder as it nears pop
+            let intensity = ((maxHP - currentHP) / maxHP) * 100;
+            ball.style.boxShadow = `0 0 ${50 + intensity}px #ff00ff`;
+            
+            if (currentHP <= 0 && !isRespawning) {
+                triggerPop();
+            }
         }
 
-        updateTimer();
+        function handleButtonClick() {
+            if (isRespawning) return;
+            syncGame();
+        }
+
+        function triggerPop() {
+            isRespawning = true;
+            ball.classList.add('popped');
+            setTimeout(() => {
+                ball.classList.remove('popped');
+                isRespawning = false;
+                syncGame();
+            }, 3000);
+        }
+
+        // 2. Admin Panel Logic (0-0-0)
+        window.addEventListener('keydown', (e) => {
+            if (e.key === '0') {
+                zeroCount++;
+                if (zeroCount === 3) {
+                    toggleAdmin();
+                    zeroCount = 0;
+                }
+            } else {
+                zeroCount = 0;
+            }
+        });
+
+        function toggleAdmin() {
+            const panel = document.getElementById('admin-panel');
+            panel.style.display = (panel.style.display === 'block') ? 'none' : 'block';
+        }
+
+        function saveAdminSettings() {
+            const newHP = document.getElementById('hp-input').value;
+            if (newHP) {
+                alert("HP Override sent to local session. (Server-side overrides require a Private API Key)");
+                maxHP = parseInt(newHP);
+                currentHP = maxHP;
+                maxDisplay.innerText = maxHP;
+                hpDisplay.innerText = currentHP;
+                toggleAdmin();
+            }
+        }
+
+        // Initial Load
+        setInterval(syncGame, 2000); // Check for global updates every 2 seconds
+        syncGame();
+
     </script>
 </body>
 </html>
