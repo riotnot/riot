@@ -1,149 +1,323 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RIOT | PUBLIC WORLD</title>
-    <script src='https://cdn.scaledrone.com/scaledrone.min.js'></script>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background: #080808; overflow: hidden; font-family: 'Inter', sans-serif; color: white; }
-        
-        #game-canvas { position: absolute; width: 100vw; height: 100vh; background: #111; }
-
-        .player {
-            position: absolute;
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            transition: all 0.1s linear;
-            display: flex;
-            justify-content: center;
-        }
-
-        .name-tag {
-            position: absolute;
-            top: -20px;
-            font-size: 10px;
-            white-space: nowrap;
-            background: rgba(0,0,0,0.5);
-            padding: 2px 6px;
-            border-radius: 4px;
-        }
-
-        #minimap {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            width: 160px;
-            height: 120px;
-            background: rgba(0, 0, 0, 0.9);
-            border: 1px solid #333;
-            border-radius: 10px;
-            display: none;
-        }
-
-        .m-dot { position: absolute; width: 5px; height: 5px; border-radius: 50%; }
-        
-        .ui { position: absolute; top: 20px; left: 20px; pointer-events: none; opacity: 0.5; font-size: 12px; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RIOT | PUBLIC WORLD</title>
+  <script src="https://cdn.scaledrone.com/scaledrone.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0a0a0a; overflow: hidden; font-family: 'Inter', sans-serif; color: #fff; }
+    #c { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; }
+    #ui { position: absolute; top: 16px; left: 16px; font-size: 11px; color: #555; pointer-events: none; letter-spacing: .08em; }
+    #mm { position: absolute; bottom: 16px; right: 16px; width: 150px; height: 110px; background: #111; border: 1px solid #222; border-radius: 8px; display: none; overflow: hidden; }
+    #info { position: absolute; top: 16px; right: 16px; font-size: 11px; color: #333; text-align: right; pointer-events: none; }
+    #name-modal { position: absolute; inset: 0; background: rgba(0,0,0,.85); display: flex; align-items: center; justify-content: center; z-index: 99; }
+    #name-box { background: #141414; border: 1px solid #2a2a2a; border-radius: 10px; padding: 28px 32px; text-align: center; width: 280px; }
+    #name-box h2 { font-size: 14px; font-weight: 500; color: #999; margin-bottom: 16px; letter-spacing: .06em; }
+    #name-input { width: 100%; background: #0a0a0a; border: 1px solid #333; border-radius: 6px; color: #fff; font-size: 14px; padding: 10px 14px; margin-bottom: 14px; outline: none; font-family: inherit; }
+    #name-input:focus { border-color: #555; }
+    #name-btn { width: 100%; background: #1a1a1a; border: 1px solid #333; border-radius: 6px; color: #ddd; font-size: 13px; padding: 10px; cursor: pointer; font-family: inherit; letter-spacing: .04em; transition: background .15s; }
+    #name-btn:hover { background: #252525; }
+  </style>
 </head>
 <body>
 
-    <div class="ui">WASD TO MOVE | M FOR MINIMAP</div>
-    <div id="game-canvas"></div>
-    <div id="minimap"></div>
+<canvas id="c"></canvas>
+<div id="ui">WASD · MOVE &nbsp;|&nbsp; M · MINIMAP</div>
+<div id="info"></div>
+<div id="mm"><canvas id="mmc"></canvas></div>
 
-    <script>
-        // Public Scaling Drone ID (No setup required for you)
-        const drone = new Scaledrone('yiS12sB9DxAb9iIu'); 
-        const roomName = 'observable-public-riot-world';
-        let room;
+<div id="name-modal">
+  <div id="name-box">
+    <h2>ENTER YOUR NAME</h2>
+    <input id="name-input" maxlength="16" placeholder="player name" autocomplete="off" spellcheck="false"/>
+    <button id="name-btn">JOIN WORLD</button>
+  </div>
+</div>
 
-        const canvas = document.getElementById('game-canvas');
-        const minimap = document.getElementById('minimap');
+<script>
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  const mmCanvas = document.getElementById('mmc');
+  const mmCtx = mmCanvas.getContext('2d');
+  const modal = document.getElementById('name-modal');
+  const nameInput = document.getElementById('name-input');
+  const nameBtn = document.getElementById('name-btn');
+  const mm = document.getElementById('mm');
+  const infoEl = document.getElementById('info');
 
-        // Local Storage for consistent Identity
-        if (!localStorage.getItem('riot_user_id')) {
-            localStorage.setItem('riot_user_id', Math.random().toString(36).substr(2, 5));
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  mmCanvas.width = 150;
+  mmCanvas.height = 110;
+
+  const WORLD_W = 3000;
+  const WORLD_H = 2000;
+  const SPEED = 5;
+
+  if (!localStorage.getItem('riot_uid')) {
+    localStorage.setItem('riot_uid', Math.random().toString(36).substr(2, 6));
+  }
+  const myId = localStorage.getItem('riot_uid');
+  const myColor = `hsl(${(parseInt(myId, 36) * 137) % 360},65%,55%)`;
+
+  let myName = localStorage.getItem('riot_name') || '';
+  let myPos = { x: WORLD_W / 2 + (Math.random() - 0.5) * 200, y: WORLD_H / 2 + (Math.random() - 0.5) * 200 };
+  let camera = { x: myPos.x - canvas.width / 2, y: myPos.y - canvas.height / 2 };
+  let players = {};
+  let keys = {};
+  let mmVisible = false;
+  let room, drone;
+  let connected = false;
+
+  const ZONES = [
+    { x: 200,  y: 200,  w: 600, h: 400, label: 'NORTH DISTRICT', color: 'rgba(30,60,80,.18)' },
+    { x: 1000, y: 150,  w: 800, h: 500, label: 'CENTRAL HUB',    color: 'rgba(60,40,80,.18)' },
+    { x: 2000, y: 200,  w: 700, h: 400, label: 'EAST QUARTER',   color: 'rgba(30,70,50,.18)' },
+    { x: 100,  y: 1200, w: 600, h: 600, label: 'SOUTH PORT',     color: 'rgba(70,50,30,.18)' },
+    { x: 1100, y: 1100, w: 700, h: 700, label: 'MARKET ZONE',    color: 'rgba(60,60,20,.18)' },
+    { x: 2100, y: 1000, w: 700, h: 800, label: 'INDUSTRIAL',     color: 'rgba(50,30,30,.18)' },
+  ];
+
+  const ROADS = [
+    { x1: 0,    y1: 1000, x2: WORLD_W, y2: 1000 },
+    { x1: 1500, y1: 0,    x2: 1500,    y2: WORLD_H },
+    { x1: 0,    y1: 600,  x2: 1500,    y2: 600 },
+    { x1: 1500, y1: 1400, x2: WORLD_W, y2: 1400 },
+    { x1: 800,  y1: 600,  x2: 800,     y2: 1000 },
+    { x1: 1500, y1: 700,  x2: 2200,    y2: 700 },
+  ];
+
+  function initDrone() {
+    drone = new Scaledrone('yiS12sB9DxAb9iIu');
+    drone.on('open', err => {
+      if (err) { infoEl.textContent = 'CONNECTION ERROR'; return; }
+      connected = true;
+      room = drone.subscribe('observable-riot-world-v2');
+      room.on('data', data => {
+        if (data.id === myId) return;
+        if (!players[data.id]) {
+          players[data.id] = { id: data.id, x: data.x, y: data.y, tx: data.x, ty: data.y, color: data.color, name: data.name, lastSeen: Date.now() };
+        } else {
+          players[data.id].tx = data.x;
+          players[data.id].ty = data.y;
+          players[data.id].name = data.name;
+          players[data.id].lastSeen = Date.now();
         }
-        
-        const myId = localStorage.getItem('riot_user_id');
-        const myColor = `hsl(${Math.random() * 360}, 70%, 50%)`;
-        let myPos = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-        
-        let players = {};
-        let keys = {};
-        let mVisible = false;
+      });
+      room.on('members', members => {
+        infoEl.textContent = members.length + ' online';
+      });
+    });
+  }
 
-        drone.on('open', error => {
-            if (error) return console.error(error);
-            room = drone.subscribe(roomName);
-            
-            room.on('data', (data) => {
-                if (data.id === myId) return;
-                updatePlayer(data);
-            });
-        });
+  function broadcast() {
+    if (!drone || !room || !connected) return;
+    drone.publish({
+      room: 'observable-riot-world-v2',
+      message: { id: myId, x: myPos.x, y: myPos.y, color: myColor, name: myName }
+    });
+  }
 
-        function updatePlayer(data) {
-            if (!players[data.id]) {
-                const div = document.createElement('div');
-                div.id = 'p-' + data.id;
-                div.className = 'player';
-                div.innerHTML = `<span class="name-tag">${data.id === myId ? 'YOU' : 'PLAYER'}</span>`;
-                div.style.backgroundColor = data.color;
-                canvas.appendChild(div);
-            }
-            const el = document.getElementById('p-' + data.id);
-            el.style.left = data.x + 'px';
-            el.style.top = data.y + 'px';
-            players[data.id] = data;
-        }
+  nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') joinWorld(); });
+  nameBtn.addEventListener('click', joinWorld);
 
-        window.addEventListener('keydown', e => {
-            keys[e.key.toLowerCase()] = true;
-            if (e.key.toLowerCase() === 'm') {
-                mVisible = !mVisible;
-                minimap.style.display = mVisible ? 'block' : 'none';
-            }
-        });
-        window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+  function joinWorld() {
+    const v = nameInput.value.trim();
+    if (!v) return;
+    myName = v;
+    localStorage.setItem('riot_name', v);
+    modal.style.display = 'none';
+    initDrone();
+  }
 
-        function gameLoop() {
-            let moved = false;
-            if (keys['w'] && myPos.y > 0) { myPos.y -= 6; moved = true; }
-            if (keys['s'] && myPos.y < window.innerHeight - 30) { myPos.y += 6; moved = true; }
-            if (keys['a'] && myPos.x > 0) { myPos.x -= 6; moved = true; }
-            if (keys['d'] && myPos.x < window.innerWidth - 30) { myPos.x += 6; moved = true; }
+  if (myName) {
+    nameInput.value = myName;
+    joinWorld();
+  }
 
-            if (moved) {
-                // Update me locally
-                updatePlayer({ id: myId, x: myPos.x, y: myPos.y, color: '#fff' });
-                // Send to the public
-                if (room) {
-                    drone.publish({
-                        room: roomName,
-                        message: { id: myId, x: myPos.x, y: myPos.y, color: myColor }
-                    });
-                }
-            }
+  window.addEventListener('keydown', e => {
+    keys[e.key.toLowerCase()] = true;
+    if (e.key.toLowerCase() === 'm') {
+      mmVisible = !mmVisible;
+      mm.style.display = mmVisible ? 'block' : 'none';
+    }
+  });
+  window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+  window.addEventListener('resize', () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  });
 
-            if (mVisible) {
-                minimap.innerHTML = '';
-                Object.values(players).forEach(p => {
-                    const dot = document.createElement('div');
-                    dot.className = 'm-dot';
-                    dot.style.left = (p.x / window.innerWidth * 160) + 'px';
-                    dot.style.top = (p.y / window.innerHeight * 120) + 'px';
-                    dot.style.backgroundColor = p.color;
-                    minimap.appendChild(dot);
-                });
-            }
-            requestAnimationFrame(gameLoop);
-        }
+  function lerp(a, b, t) { return a + (b - a) * t; }
 
-        gameLoop();
-    </script>
+  function drawMap() {
+    ctx.fillStyle = '#0e0e0e';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const ox = -camera.x;
+    const oy = -camera.y;
+
+    ctx.save();
+    ctx.translate(ox, oy);
+
+    // Grid
+    const gridSize = 100;
+    ctx.strokeStyle = '#161616';
+    ctx.lineWidth = 1;
+    const gsx = Math.floor(camera.x / gridSize) * gridSize;
+    const gsy = Math.floor(camera.y / gridSize) * gridSize;
+    for (let x = gsx; x < camera.x + canvas.width + gridSize; x += gridSize) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_H); ctx.stroke();
+    }
+    for (let y = gsy; y < camera.y + canvas.height + gridSize; y += gridSize) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WORLD_W, y); ctx.stroke();
+    }
+
+    // World border
+    ctx.strokeStyle = '#222';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(0, 0, WORLD_W, WORLD_H);
+
+    // Zones
+    ZONES.forEach(z => {
+      ctx.fillStyle = z.color;
+      ctx.fillRect(z.x, z.y, z.w, z.h);
+      ctx.strokeStyle = 'rgba(255,255,255,.04)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(z.x, z.y, z.w, z.h);
+      ctx.fillStyle = 'rgba(255,255,255,.12)';
+      ctx.font = '11px Inter,sans-serif';
+      ctx.fillText(z.label, z.x + 12, z.y + 20);
+    });
+
+    // Roads (wide glow + center line)
+    ctx.strokeStyle = 'rgba(255,255,255,.03)';
+    ctx.lineWidth = 28;
+    ROADS.forEach(r => {
+      ctx.beginPath(); ctx.moveTo(r.x1, r.y1); ctx.lineTo(r.x2, r.y2); ctx.stroke();
+    });
+    ctx.strokeStyle = 'rgba(255,255,255,.06)';
+    ctx.lineWidth = 2;
+    ROADS.forEach(r => {
+      ctx.beginPath(); ctx.moveTo(r.x1, r.y1); ctx.lineTo(r.x2, r.y2); ctx.stroke();
+    });
+
+    ctx.restore();
+  }
+
+  let broadcastTimer = 0;
+
+  function gameLoop() {
+    let moved = false;
+    if (keys['w'] || keys['arrowup'])    { myPos.y = Math.max(0, myPos.y - SPEED); moved = true; }
+    if (keys['s'] || keys['arrowdown'])  { myPos.y = Math.min(WORLD_H, myPos.y + SPEED); moved = true; }
+    if (keys['a'] || keys['arrowleft'])  { myPos.x = Math.max(0, myPos.x - SPEED); moved = true; }
+    if (keys['d'] || keys['arrowright']) { myPos.x = Math.min(WORLD_W, myPos.x + SPEED); moved = true; }
+
+    camera.x = lerp(camera.x, myPos.x - canvas.width / 2, 0.12);
+    camera.y = lerp(camera.y, myPos.y - canvas.height / 2, 0.12);
+
+    if (moved) {
+      broadcastTimer++;
+      if (broadcastTimer % 3 === 0) broadcast();
+    }
+
+    // Prune stale players (gone >15s)
+    const now = Date.now();
+    Object.keys(players).forEach(id => {
+      if (players[id].lastSeen && now - players[id].lastSeen > 15000) delete players[id];
+    });
+
+    // Lerp remote players toward their target positions
+    Object.values(players).forEach(p => {
+      p.x = lerp(p.x, p.tx, 0.18);
+      p.y = lerp(p.y, p.ty, 0.18);
+    });
+
+    drawMap();
+
+    const ox = -camera.x;
+    const oy = -camera.y;
+
+    // Remote players
+    Object.values(players).forEach(p => {
+      const sx = p.x + ox;
+      const sy = p.y + oy;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 12, 0, Math.PI * 2);
+      ctx.fillStyle = p.color;
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,.15)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      const label = p.name || '?';
+      const tw = ctx.measureText(label).width + 10;
+      ctx.fillStyle = 'rgba(0,0,0,.6)';
+      ctx.beginPath();
+      ctx.roundRect(sx - tw / 2, sy - 28, tw, 16, 4);
+      ctx.fill();
+      ctx.fillStyle = '#ccc';
+      ctx.font = '10px Inter,sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(label, sx, sy - 16);
+      ctx.textAlign = 'left';
+    });
+
+    // Local player
+    const sx = myPos.x + ox;
+    const sy = myPos.y + oy;
+    ctx.beginPath();
+    ctx.arc(sx, sy, 14, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(sx, sy, 10, 0, Math.PI * 2);
+    ctx.fillStyle = myColor;
+    ctx.fill();
+
+    const meTw = ctx.measureText(myName).width + 10;
+    ctx.fillStyle = 'rgba(0,0,0,.7)';
+    ctx.beginPath();
+    ctx.roundRect(sx - meTw / 2, sy - 30, meTw, 16, 4);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px Inter,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(myName, sx, sy - 18);
+    ctx.textAlign = 'left';
+
+    // Minimap
+    if (mmVisible) {
+      const scx = 150 / WORLD_W;
+      const scy = 110 / WORLD_H;
+      mmCtx.fillStyle = '#0e0e0e';
+      mmCtx.fillRect(0, 0, 150, 110);
+      ZONES.forEach(z => {
+        mmCtx.fillStyle = z.color;
+        mmCtx.fillRect(z.x * scx, z.y * scy, z.w * scx, z.h * scy);
+      });
+      Object.values(players).forEach(p => {
+        mmCtx.beginPath();
+        mmCtx.arc(p.x * scx, p.y * scy, 2, 0, Math.PI * 2);
+        mmCtx.fillStyle = p.color;
+        mmCtx.fill();
+      });
+      mmCtx.beginPath();
+      mmCtx.arc(myPos.x * scx, myPos.y * scy, 3, 0, Math.PI * 2);
+      mmCtx.fillStyle = '#fff';
+      mmCtx.fill();
+      mmCtx.strokeStyle = '#222';
+      mmCtx.lineWidth = 1;
+      mmCtx.strokeRect(0, 0, 150, 110);
+    }
+
+    requestAnimationFrame(gameLoop);
+  }
+
+  gameLoop();
+</script>
 </body>
 </html>
