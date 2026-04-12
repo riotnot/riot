@@ -3,174 +3,123 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NEON POP | GLOBAL</title>
+    <title>RIOT | MAP SYSTEM</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Orbitron', sans-serif; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
-            background: #050505; 
-            height: 100vh; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            justify-content: center; 
-            overflow: hidden;
-            color: white;
+            background: #121212; 
+            overflow: hidden; 
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
         }
 
-        #stats { position: absolute; top: 20px; text-align: center; pointer-events: none; }
-        .glitch { font-size: 1.2rem; color: #00f3ff; text-shadow: 0 0 10px #00f3ff; letter-spacing: 3px; }
-
-        /* The Neon Ball */
-        #ball-container { position: relative; cursor: crosshair; transition: transform 0.1s; }
-        #ball-container:active { transform: scale(0.9); }
-
-        #ball {
-            width: 200px;
-            height: 200px;
-            border-radius: 50%;
-            background: radial-gradient(circle at 30% 30%, #fff, #ff00ff);
-            box-shadow: 0 0 50px #ff00ff, inset 0 0 30px #000;
-            transition: all 0.3s ease;
+        #game-wrapper {
             position: relative;
+            width: 800px;
+            height: 600px;
+            background: #1a1a1a;
+            border: 2px solid #333;
+            overflow: hidden;
         }
 
-        .popped { transform: scale(3) !important; opacity: 0 !important; }
-
-        /* Admin Panel */
-        #admin-panel {
-            display: none;
+        #player {
             position: absolute;
-            background: rgba(0, 0, 0, 0.9);
-            border: 2px solid #00f3ff;
-            padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0 0 30px rgba(0, 243, 255, 0.3);
-            z-index: 100;
+            width: 20px;
+            height: 20px;
+            background: #bb9af7;
+            border-radius: 50%;
+            box-shadow: 0 0 15px rgba(187, 154, 247, 0.5);
         }
 
-        input { background: #111; border: 1px solid #00f3ff; color: #00f3ff; padding: 10px; margin: 10px 0; width: 100%; outline: none; }
-        button { background: #00f3ff; border: none; padding: 10px 20px; cursor: pointer; font-weight: bold; width: 100%; }
+        /* Mini Map Styles */
+        #minimap {
+            position: absolute;
+            bottom: 15px;
+            right: 15px;
+            width: 150px;
+            height: 112px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #bb9af7;
+            display: none; /* Hidden by default */
+            border-radius: 4px;
+        }
+
+        #minimap-player {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: #fff;
+            border-radius: 50%;
+        }
+
+        .controls-hint {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #555;
+            font-size: 0.7rem;
+            letter-spacing: 1px;
+        }
     </style>
 </head>
 <body>
 
-    <div id="stats">
-        <div class="glitch">GLOBAL POPS: <span id="pop-count">0</span></div>
-        <div style="font-size: 0.8rem; opacity: 0.6;">HP: <span id="current-hp">?</span> / <span id="max-hp">?</span></div>
-    </div>
-
-    <div id="ball-container" onclick="handleButtonClick()">
-        <div id="ball"></div>
-    </div>
-
-    <div id="admin-panel">
-        <h2 style="color: #00f3ff; font-size: 1rem; margin-bottom: 10px;">ADMIN TERMINAL</h2>
-        <label>SET HP OVERRIDE:</label>
-        <input type="number" id="hp-input" placeholder="Enter Health...">
-        <button onclick="saveAdminSettings()">ACTIVATE OVERRIDE</button>
-        <p style="font-size: 0.6rem; margin-top: 10px; color: #ff00ff;">PRESS '0' THREE TIMES TO EXIT</p>
+    <div id="game-wrapper">
+        <div class="controls-hint">WASD TO MOVE | M FOR MINI-MAP</div>
+        <div id="player"></div>
+        
+        <div id="minimap">
+            <div id="minimap-player"></div>
+        </div>
     </div>
 
     <script>
-        let globalClicks = 0;
-        let globalPops = 0;
-        let maxHP = 1;
-        let currentHP = 1;
-        let zeroCount = 0;
-        let isRespawning = false;
+        const player = document.getElementById('player');
+        const minimap = document.getElementById('minimap');
+        const mPlayer = document.getElementById('minimap-player');
+        const wrapper = document.getElementById('game-wrapper');
 
-        const ball = document.getElementById('ball');
-        const popDisplay = document.getElementById('pop-count');
-        const hpDisplay = document.getElementById('current-hp');
-        const maxDisplay = document.getElementById('max-hp');
+        // Game State
+        let pos = { x: 390, y: 290 };
+        const speed = 5;
+        const keys = {};
+        let minimapVisible = false;
 
-        // 1. Sync Logic (Using CounterAPI for Global State)
-        async function syncGame() {
-            try {
-                const res = await fetch('https://api.counterapi.dev/v1/riotnot/neon-pop/up');
-                const data = await res.json();
-                globalClicks = data.count;
-                updateGameLogic();
-            } catch (e) { console.error("Sync Error"); }
-        }
-
-        function updateGameLogic() {
-            // Logic: Calculate current pop cycle
-            // The health increases by 1 every time it's popped
-            let tempClicks = globalClicks;
-            let cycle = 1;
-            
-            while (tempClicks >= cycle) {
-                tempClicks -= cycle;
-                cycle++;
-            }
-
-            globalPops = cycle - 1;
-            currentHP = cycle - tempClicks;
-            maxHP = cycle;
-
-            popDisplay.innerText = globalPops;
-            hpDisplay.innerText = currentHP;
-            maxDisplay.innerText = maxHP;
-
-            // Visual feedback - glows harder as it nears pop
-            let intensity = ((maxHP - currentHP) / maxHP) * 100;
-            ball.style.boxShadow = `0 0 ${50 + intensity}px #ff00ff`;
-            
-            if (currentHP <= 0 && !isRespawning) {
-                triggerPop();
-            }
-        }
-
-        function handleButtonClick() {
-            if (isRespawning) return;
-            syncGame();
-        }
-
-        function triggerPop() {
-            isRespawning = true;
-            ball.classList.add('popped');
-            setTimeout(() => {
-                ball.classList.remove('popped');
-                isRespawning = false;
-                syncGame();
-            }, 3000);
-        }
-
-        // 2. Admin Panel Logic (0-0-0)
+        // Input Listeners
         window.addEventListener('keydown', (e) => {
-            if (e.key === '0') {
-                zeroCount++;
-                if (zeroCount === 3) {
-                    toggleAdmin();
-                    zeroCount = 0;
-                }
-            } else {
-                zeroCount = 0;
+            keys[e.key.toLowerCase()] = true;
+            
+            // Toggle Minimap
+            if (e.key.toLowerCase() === 'm') {
+                minimapVisible = !minimapVisible;
+                minimap.style.display = minimapVisible ? 'block' : 'none';
             }
         });
+        window.addEventListener('keyup', (e) => keys[e.key.toLowerCase()] = false);
 
-        function toggleAdmin() {
-            const panel = document.getElementById('admin-panel');
-            panel.style.display = (panel.style.display === 'block') ? 'none' : 'block';
+        function update() {
+            // Movement Logic
+            if (keys['w'] && pos.y > 0) pos.y -= speed;
+            if (keys['s'] && pos.y < 580) pos.y += speed;
+            if (keys['a'] && pos.x > 0) pos.x -= speed;
+            if (keys['d'] && pos.x < 780) pos.x += speed;
+
+            // Update Player Visual
+            player.style.left = pos.x + 'px';
+            player.style.top = pos.y + 'px';
+
+            // Update Minimap Player Visual
+            // Scale is (150/800) for X and (112/600) for Y
+            mPlayer.style.left = (pos.x * (150 / 800)) + 'px';
+            mPlayer.style.top = (pos.y * (112 / 600)) + 'px';
+
+            requestAnimationFrame(update);
         }
 
-        function saveAdminSettings() {
-            const newHP = document.getElementById('hp-input').value;
-            if (newHP) {
-                alert("HP Override sent to local session. (Server-side overrides require a Private API Key)");
-                maxHP = parseInt(newHP);
-                currentHP = maxHP;
-                maxDisplay.innerText = maxHP;
-                hpDisplay.innerText = currentHP;
-                toggleAdmin();
-            }
-        }
-
-        // Initial Load
-        setInterval(syncGame, 2000); // Check for global updates every 2 seconds
-        syncGame();
-
+        update();
     </script>
 </body>
 </html>
