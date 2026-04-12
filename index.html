@@ -3,110 +3,71 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>@riotnot | Live Stats</title>
+    <title>Live Countdown | Managed</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
-
-        body {
-            background: #000;
-            height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            overflow: hidden;
+        body { background: #000; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; }
+        
+        .timer-display { font-size: 5rem; font-weight: 900; letter-spacing: -2px; margin: 20px 0; font-variant-numeric: tabular-nums; }
+        
+        /* Admin Panel - Hidden by default */
+        #admin-panel { 
+            display: none; 
+            background: rgba(255, 255, 255, 0.05); 
+            padding: 20px; 
+            border-radius: 15px; 
+            margin-top: 30px; 
+            border: 1px solid #00ff88;
         }
-
-        .container {
-            text-align: center;
-            background: rgba(255, 255, 255, 0.02);
-            padding: 60px;
-            border-radius: 40px;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            box-shadow: 0 0 100px rgba(187, 154, 247, 0.05);
-            position: relative;
-        }
-
-        h1 {
-            font-size: 0.9rem;
-            color: #bb9af7;
-            text-transform: uppercase;
-            letter-spacing: 6px;
-            margin-bottom: 30px;
-            opacity: 0.8;
-        }
-
-        #viewer-count {
-            font-size: 6rem;
-            font-weight: 900;
-            letter-spacing: -2px;
-            background: linear-gradient(to bottom, #fff 30%, #333 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin: 10px 0;
-        }
-
-        .label {
-            font-size: 0.8rem;
-            color: #555;
-            margin-top: -10px;
-            font-weight: bold;
-        }
-
-        .status-box {
-            margin-top: 40px;
-            padding: 10px 20px;
-            background: rgba(0, 255, 136, 0.05);
-            border-radius: 50px;
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            border: 1px solid rgba(0, 255, 136, 0.1);
-        }
-
-        .dot {
-            height: 6px;
-            width: 6px;
-            background-color: #00ff88;
-            border-radius: 50%;
-            box-shadow: 0 0 10px #00ff88;
-            animation: blink 1s infinite;
-        }
-
-        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+        
+        input, button { background: #222; color: #fff; border: 1px solid #444; padding: 8px; border-radius: 5px; margin: 5px; cursor: pointer; }
+        button:hover { background: #00ff88; color: #000; }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <h1>Global Network Traffic</h1>
-        <div id="viewer-count">...</div>
-        <div class="label">TOTAL UNIQUE SESSIONS</div>
-        
-        <br>
-        
-        <div class="status-box">
-            <div class="dot"></div>
-            <span style="font-size: 0.7rem; color: #00ff88; letter-spacing: 1px;">SYNCED TO CLOUD</span>
-        </div>
+    <h1 id="header">COUNTDOWN</h1>
+    <div class="timer-display" id="timer">00:00:00</div>
+
+    <div id="admin-panel">
+        <p style="color: #00ff88; font-size: 0.8rem; margin-bottom: 10px;">ADMIN CONTROLS</p>
+        <input type="number" id="minutesInput" placeholder="Minutes">
+        <button onclick="adjustTimer('add')">Add Time</button>
+        <button onclick="setTimer()">Set Exact</button>
+        <button onclick="togglePause()">Pause/Play</button>
     </div>
 
     <script>
-        // We use CounterAPI.dev for 2026 stability
-        async function getCount() {
-            try {
-                // 'up' adds 1 to the count immediately
-                const response = await fetch('https://api.counterapi.dev/v1/riotnot/riot/up');
-                const data = await response.json();
-                
-                // Animates the number appearing
-                document.getElementById('viewer-count').innerText = data.count.toLocaleString();
-            } catch (error) {
-                document.getElementById('viewer-count').innerText = "OFFLINE";
-            }
+        const BIN_ID = "YOUR_BIN_ID_HERE";
+        const API_KEY = "YOUR_API_KEY_HERE";
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        const isAdmin = urlParams.get('admin') === 'riot';
+
+        if (isAdmin) { document.getElementById('admin-panel').style.display = 'block'; }
+
+        async function updateTimer() {
+            // In a real app, you'd fetch the JSONbin data here
+            // For now, let's look at the local countdown logic
+            setInterval(() => {
+                const now = new Date().getTime();
+                const distance = 1744473600000 - now; // Replace with your end time
+
+                const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+                document.getElementById("timer").innerHTML = hours + "h " + minutes + "m " + seconds + "s ";
+            }, 1000);
         }
 
-        getCount();
+        // Admin Functions
+        async function adjustTimer(type) {
+            alert("This would send a request to your JSONbin to update the time for EVERYONE.");
+            // Logic: Fetch current Bin -> Add Minutes -> PUT back to Bin
+        }
+
+        updateTimer();
     </script>
 </body>
 </html>
