@@ -3,139 +3,133 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RIOT | REAL-TIME MULTIPLAYER</title>
-    <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
+    <title>RIOT | MULTIPLAYER LIVE</title>
+    <script src='https://cdn.scaledrone.com/scaledrone.min.js'></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background: #0f0f0f; overflow: hidden; font-family: 'Inter', sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; }
+        body { background: #0a0a0a; overflow: hidden; font-family: 'Inter', sans-serif; }
         
-        #game-wrapper {
-            position: relative;
-            width: 100vw;
-            height: 100vh;
-            background: #111;
-            overflow: hidden;
-        }
+        #game-world { position: relative; width: 100vw; height: 100vh; background: #111; }
 
         .player {
             position: absolute;
-            width: 25px;
-            height: 25px;
+            width: 30px;
+            height: 30px;
             border-radius: 50%;
-            transition: top 0.1s linear, left 0.1s linear;
-            box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+            transition: all 0.1s linear;
+            border: 2px solid rgba(255,255,255,0.3);
         }
 
+        /* Mini-Map */
         #minimap {
             position: absolute;
             bottom: 20px;
             right: 20px;
-            width: 150px;
-            height: 112px;
-            background: rgba(0, 0, 0, 0.8);
+            width: 160px;
+            height: 120px;
+            background: rgba(0, 0, 0, 0.85);
             border: 1px solid #444;
-            border-radius: 8px;
+            border-radius: 10px;
             display: none;
+            overflow: hidden;
         }
 
-        .m-dot {
-            position: absolute;
-            width: 5px;
-            height: 5px;
-            border-radius: 50%;
-        }
+        .m-dot { position: absolute; width: 6px; height: 6px; border-radius: 50%; }
+        .controls { position: absolute; top: 10px; left: 10px; color: #444; font-size: 10px; letter-spacing: 1px; pointer-events: none; }
     </style>
 </head>
 <body>
 
-    <div id="game-wrapper">
+    <div id="game-world">
+        <div class="controls">WASD: MOVE | M: MINIMAP</div>
         <div id="minimap"></div>
     </div>
 
     <script>
-        // --- CONFIG ---
-        const ABLY_KEY = 'INSERT_ABLY_KEY_HERE'; 
-        const ably = new Ably.Realtime(ABLY_KEY);
-        const channel = ably.channels.get('game-world');
-        const wrapper = document.getElementById('game-wrapper');
+        // Public Channel ID for testing
+        const drone = new Scaledrone('yiS12sB9DxAb9iIu'); 
+        const roomName = 'observable-riot-room';
+        let room;
+
+        const world = document.getElementById('game-world');
         const minimap = document.getElementById('minimap');
 
-        let myId = Math.random().toString(36).substring(7);
-        let myColor = `hsl(${Math.random() * 360}, 70%, 60%)`;
+        const myId = Math.random().toString(36).substr(2, 9);
+        const myColor = `hsl(${Math.random() * 360}, 80%, 60%)`;
+        let myPos = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+        
         let players = {};
         let keys = {};
-        let myPos = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
         let mVisible = false;
 
-        // --- MULTIPLAYER LOGIC ---
-        // Listen for other players moving
-        channel.subscribe('update', (msg) => {
-            if (msg.data.id === myId) return; // Skip if it's me
-            updatePlayerData(msg.data);
+        drone.on('open', error => {
+            if (error) return console.error(error);
+            room = drone.subscribe(roomName);
+            
+            room.on('data', (data) => {
+                if (data.id === myId) return;
+                updateRemotePlayer(data);
+            });
         });
 
-        // Handle player leaving
-        channel.presence.subscribe('leave', (member) => {
-            const el = document.getElementById(member.clientId);
-            if (el) el.remove();
-        });
-
-        function updatePlayerData(data) {
+        function updateRemotePlayer(data) {
             if (!players[data.id]) {
-                // Create new player circle
-                const newPlayer = document.createElement('div');
-                newPlayer.id = data.id;
-                newPlayer.className = 'player';
-                newPlayer.style.backgroundColor = data.color;
-                wrapper.appendChild(newPlayer);
+                const el = document.createElement('div');
+                el.id = 'player-' + data.id;
+                el.className = 'player';
+                el.style.backgroundColor = data.color;
+                world.appendChild(el);
                 players[data.id] = data;
             }
-            const el = document.getElementById(data.id);
-            el.style.left = data.x + 'px';
-            el.style.top = data.y + 'px';
+            const pEl = document.getElementById('player-' + data.id);
+            pEl.style.left = data.x + 'px';
+            pEl.style.top = data.y + 'px';
+            players[data.id] = data;
         }
 
-        // --- INPUT & MOVEMENT ---
-        window.addEventListener('keydown', (e) => {
+        window.addEventListener('keydown', e => {
             keys[e.key.toLowerCase()] = true;
             if (e.key.toLowerCase() === 'm') {
                 mVisible = !mVisible;
                 minimap.style.display = mVisible ? 'block' : 'none';
             }
         });
-        window.addEventListener('keyup', (e) => keys[e.key.toLowerCase()] = false);
+        window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
-        function gameLoop() {
+        function loop() {
             let moved = false;
-            if (keys['w'] && myPos.y > 0) { myPos.y -= 7; moved = true; }
-            if (keys['s'] && myPos.y < window.innerHeight - 25) { myPos.y += 7; moved = true; }
-            if (keys['a'] && myPos.x > 0) { myPos.x -= 7; moved = true; }
-            if (keys['d'] && myPos.x < window.innerWidth - 25) { myPos.x += 7; moved = true; }
+            if (keys['w'] && myPos.y > 0) { myPos.y -= 8; moved = true; }
+            if (keys['s'] && myPos.y < window.innerHeight - 30) { myPos.y += 8; moved = true; }
+            if (keys['a'] && myPos.x > 0) { myPos.x -= 8; moved = true; }
+            if (keys['d'] && myPos.x < window.innerWidth - 30) { myPos.x += 8; moved = true; }
 
             if (moved) {
-                // Update local visual
-                updatePlayerData({ id: myId, x: myPos.x, y: myPos.y, color: myColor });
-                // Broadcast to everyone else
-                channel.publish('update', { id: myId, x: myPos.x, y: myPos.y, color: myColor });
+                // Draw self
+                updateRemotePlayer({ id: myId, x: myPos.x, y: myPos.y, color: '#fff' });
+                // Send to others
+                if (room) {
+                    drone.publish({
+                        room: roomName,
+                        message: { id: myId, x: myPos.x, y: myPos.y, color: myColor }
+                    });
+                }
             }
 
-            // Update Minimap dots
             if (mVisible) {
                 minimap.innerHTML = '';
-                [...Object.values(players), {id: myId, x: myPos.x, y: myPos.y, color: '#fff'}].forEach(p => {
+                Object.values(players).forEach(p => {
                     const dot = document.createElement('div');
                     dot.className = 'm-dot';
-                    dot.style.left = (p.x / window.innerWidth * 150) + 'px';
-                    dot.style.top = (p.y / window.innerHeight * 112) + 'px';
+                    dot.style.left = (p.x / window.innerWidth * 160) + 'px';
+                    dot.style.top = (p.y / window.innerHeight * 120) + 'px';
                     dot.style.backgroundColor = p.color;
                     minimap.appendChild(dot);
                 });
             }
-
-            requestAnimationFrame(gameLoop);
+            requestAnimationFrame(loop);
         }
 
-        gameLoop();
+        loop();
     </script>
 </body>
 </html>
