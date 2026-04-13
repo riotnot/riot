@@ -5,93 +5,230 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Open World</title>
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0f; }
-  body { font-family: 'Segoe UI', system-ui, sans-serif; color: #fff; user-select: none; }
+  *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+  html, body { width:100%; height:100%; overflow:hidden; background:#0a0a0f; }
+  body { font-family:'Segoe UI', system-ui, sans-serif; color:#fff; user-select:none; }
 
-  #gameCanvas { display:block; position:fixed; inset:0; width:100%; height:100%; cursor:crosshair; }
+  #gameCanvas {
+    display:block; position:fixed; inset:0;
+    width:100%; height:100%; cursor:crosshair;
+  }
 
   #nameModal {
-    position: fixed; inset: 0; z-index: 1000;
-    background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
+    position:fixed; inset:0; z-index:1000;
+    background:rgba(0,0,0,0.85);
+    backdrop-filter:blur(8px);
     display:flex; align-items:center; justify-content:center;
   }
   #nameModal.hidden { display:none; }
+
   .modal-box {
-    background:#12121a; border:1px solid rgba(255,255,255,0.1); border-radius:12px;
-    padding:40px 48px; width:360px; box-shadow:0 0 60px rgba(80,120,255,0.15); text-align:center;
+    background:#12121a;
+    border:1px solid rgba(255,255,255,0.1);
+    border-radius:12px;
+    padding:40px 48px;
+    width:360px;
+    box-shadow:0 0 60px rgba(80,120,255,0.15);
+    text-align:center;
   }
-  .modal-box h1 { font-size:1.5rem; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:#7090ff; margin-bottom:8px; }
-  .modal-box p { font-size:0.8rem; color:#555; letter-spacing:2px; margin-bottom:28px; text-transform:uppercase; }
+  .modal-box h1 {
+    font-size:1.5rem; font-weight:700; letter-spacing:3px;
+    text-transform:uppercase; color:#7090ff;
+    margin-bottom:8px;
+  }
+  .modal-box p {
+    font-size:0.8rem; color:#555; letter-spacing:2px;
+    margin-bottom:28px; text-transform:uppercase;
+  }
   .modal-box input, #chatInput {
-    width:100%; padding:12px 16px; background:rgba(255,255,255,0.05);
-    border:1px solid rgba(255,255,255,0.12); border-radius:6px; color:#fff; font-size:1rem;
-    font-family:inherit; outline:none;
+    width:100%;
+    padding:12px 16px;
+    background:rgba(255,255,255,0.05);
+    border:1px solid rgba(255,255,255,0.12);
+    border-radius:6px;
+    color:#fff;
+    font-size:1rem;
+    font-family:inherit;
+    outline:none;
   }
   .modal-box input:focus, #chatInput:focus { border-color:#7090ff; }
+
   .modal-box button, #chatSend {
-    border:none; border-radius:6px; color:#fff; font-family:inherit;
-    cursor:pointer; transition:background 0.2s, transform 0.1s;
+    border:none;
+    border-radius:6px;
+    color:#fff;
+    font-family:inherit;
+    cursor:pointer;
+    transition:background 0.2s, transform 0.1s;
   }
   .modal-box button {
-    width:100%; padding:12px; background:#7090ff; font-size:0.9rem; font-weight:700; letter-spacing:2px; text-transform:uppercase;
+    width:100%;
+    padding:12px;
+    background:#7090ff;
+    font-size:0.9rem;
+    font-weight:700;
+    letter-spacing:2px;
+    text-transform:uppercase;
   }
   .modal-box button:hover, #chatSend:hover { background:#8aa0ff; }
   .modal-box button:active, #chatSend:active { transform:scale(0.98); }
 
-  #hud { position:fixed; inset:0; pointer-events:none; z-index:100; }
-  #playerCount { position:absolute; top:16px; left:16px; font-size:0.7rem; letter-spacing:2px; color:rgba(255,255,255,0.3); text-transform:uppercase; }
-  #playerCount span { color:#7090ff; font-weight:700; }
-  #connStatus { position:absolute; top:16px; right:16px; font-size:0.65rem; letter-spacing:2px; color:rgba(255,255,255,0.25); text-transform:uppercase; display:flex; align-items:center; gap:6px; }
-  #connDot { width:6px; height:6px; border-radius:50%; background:#ff4444; transition:background 0.3s; }
-  #connDot.online { background:#44ff88; box-shadow:0 0 6px #44ff88; }
-  #zoneLabel { position:absolute; top:50px; left:16px; font-size:0.65rem; letter-spacing:3px; color:rgba(255,255,255,0.2); text-transform:uppercase; }
-
-  #abilities { position:absolute; bottom:80px; left:50%; transform:translateX(-50%); display:flex; gap:10px; align-items:center; }
-  .ability-pill {
-    padding:4px 12px; border-radius:20px; border:1px solid rgba(255,255,255,0.1);
-    font-size:0.65rem; letter-spacing:2px; text-transform:uppercase; color:rgba(255,255,255,0.3);
-    transition:all 0.15s;
+  #hud {
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+    z-index:100;
   }
-  .ability-pill.active { border-color:#7090ff; color:#7090ff; box-shadow:0 0 8px rgba(112,144,255,0.3); }
-  .ability-pill.cooldown { border-color:#ff6644; color:#ff6644; }
+
+  #playerCount {
+    position:absolute; top:16px; left:16px;
+    font-size:0.7rem; letter-spacing:2px;
+    color:rgba(255,255,255,0.3);
+    text-transform:uppercase;
+  }
+  #playerCount span { color:#7090ff; font-weight:700; }
+
+  #connStatus {
+    position:absolute; top:16px; right:16px;
+    font-size:0.65rem; letter-spacing:2px;
+    color:rgba(255,255,255,0.25);
+    text-transform:uppercase;
+    display:flex; align-items:center; gap:6px;
+  }
+  #connDot {
+    width:6px; height:6px; border-radius:50%;
+    background:#ff4444;
+    transition:background 0.3s;
+  }
+  #connDot.online { background:#44ff88; box-shadow:0 0 6px #44ff88; }
+
+  #zoneLabel {
+    position:absolute; top:50px; left:16px;
+    font-size:0.65rem; letter-spacing:3px;
+    color:rgba(255,255,255,0.2);
+    text-transform:uppercase;
+  }
+
+  #abilities {
+    position:absolute; bottom:140px; left:50%;
+    transform:translateX(-50%);
+    display:flex; gap:10px; align-items:center;
+  }
+  .ability-pill {
+    padding:4px 12px;
+    border-radius:20px;
+    border:1px solid rgba(255,255,255,0.1);
+    font-size:0.65rem;
+    letter-spacing:2px;
+    text-transform:uppercase;
+    color:rgba(255,255,255,0.3);
+  }
+  .ability-pill.active {
+    border-color:#7090ff;
+    color:#7090ff;
+    box-shadow:0 0 8px rgba(112,144,255,0.3);
+  }
+  .ability-pill.cooldown {
+    border-color:#ff6644;
+    color:#ff6644;
+  }
 
   #controls {
-    position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
-    font-size:0.6rem; letter-spacing:2px; color:rgba(255,255,255,0.15); text-transform:uppercase; text-align:center;
+    position:absolute; bottom:16px; left:50%;
+    transform:translateX(-50%);
+    font-size:0.6rem; letter-spacing:2px;
+    color:rgba(255,255,255,0.15);
+    text-transform:uppercase;
+    text-align:center;
   }
 
   #miniMap {
-    position:absolute; bottom:16px; right:16px; width:180px; height:120px;
-    background:rgba(0,0,0,0.7); border:1px solid rgba(255,255,255,0.1); border-radius:6px;
-    overflow:hidden; pointer-events:none; transition:opacity 0.2s;
+    position:absolute; bottom:16px; right:16px;
+    width:180px; height:120px;
+    background:rgba(0,0,0,0.7);
+    border:1px solid rgba(255,255,255,0.1);
+    border-radius:6px;
+    overflow:hidden;
+    pointer-events:none;
   }
   #miniMap.hidden { opacity:0; }
   #miniMapCanvas { width:100%; height:100%; }
-  #miniMapLabel { position:absolute; top:4px; left:8px; font-size:0.55rem; letter-spacing:2px; color:rgba(255,255,255,0.25); text-transform:uppercase; }
+  #miniMapLabel {
+    position:absolute; top:4px; left:8px;
+    font-size:0.55rem; letter-spacing:2px;
+    color:rgba(255,255,255,0.25);
+    text-transform:uppercase;
+  }
 
-  #chat { position:absolute; bottom:16px; left:16px; width:280px; pointer-events:all; }
-  #chatHint { font-size:0.6rem; letter-spacing:2px; color:rgba(255,255,255,0.15); text-transform:uppercase; margin-bottom:4px; }
+  #chat {
+    position:absolute;
+    left:16px;
+    bottom:16px;
+    width:320px;
+    pointer-events:all;
+  }
+  #chatHint {
+    font-size:0.6rem;
+    letter-spacing:2px;
+    color:rgba(255,255,255,0.15);
+    text-transform:uppercase;
+    margin-bottom:4px;
+  }
   #chatLog {
-    max-height:130px; overflow-y:auto; display:flex; flex-direction:column; gap:3px; margin-bottom:6px; scrollbar-width:none;
+    height:170px;
+    overflow-y:auto;
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    margin-bottom:8px;
+    scrollbar-width:none;
   }
   #chatLog::-webkit-scrollbar { display:none; }
+
   .chat-msg {
-    font-size:0.72rem; line-height:1.4; padding:4px 10px; background:rgba(0,0,0,0.55);
-    border-radius:4px; border-left:2px solid rgba(255,255,255,0.1); animation:fadeIn 0.2s ease; word-break:break-word;
+    font-size:0.72rem;
+    line-height:1.4;
+    padding:5px 10px;
+    background:rgba(0,0,0,0.55);
+    border-radius:4px;
+    border-left:2px solid rgba(255,255,255,0.1);
+    word-break:break-word;
   }
   .chat-msg .sender { font-weight:700; }
-  .chat-msg.system { color:rgba(255,255,255,0.3); border-left-color:transparent; font-style:italic; }
-  @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
-  #chatInputWrap { display:flex; gap:6px; opacity:0; pointer-events:none; transition:opacity 0.15s; }
-  #chatInputWrap.open { opacity:1; pointer-events:all; }
-  #chatInput { flex:1; padding:8px 12px; background:rgba(0,0,0,0.7); border-radius:4px; font-size:0.8rem; }
-  #chatSend { padding:8px 14px; background:#7090ff; font-size:0.75rem; font-weight:700; }
+  .chat-msg.system {
+    color:rgba(255,255,255,0.3);
+    border-left-color:transparent;
+    font-style:italic;
+  }
+
+  #chatInputWrap {
+    display:flex;
+    gap:6px;
+    pointer-events:all;
+  }
+  #chatInput {
+    flex:1;
+    padding:8px 12px;
+    background:rgba(0,0,0,0.7);
+    border:1px solid rgba(255,255,255,0.15);
+    border-radius:4px;
+    color:#fff;
+    font-size:0.8rem;
+  }
+  #chatSend {
+    padding:8px 14px;
+    background:#7090ff;
+    border:none;
+    border-radius:4px;
+    color:#fff;
+    font-size:0.75rem;
+    font-weight:700;
+  }
 </style>
 </head>
 <body>
 
-anvas id="gameCanvas"></canvas>
+<canvas id="gameCanvas"></canvas>
 
 <div id="nameModal">
   <div class="modal-box">
@@ -115,12 +252,12 @@ anvas id="gameCanvas"></canvas>
   <div id="controls">WASD / ↑↓←→ move · M map · ENTER chat</div>
 
   <div id="miniMap">
-    anvas id="miniMapCanvas"></canvas>
+    <canvas id="miniMapCanvas"></canvas>
     <div id="miniMapLabel">M — map</div>
   </div>
 
   <div id="chat">
-    <div id="chatHint">ENTER — chat</div>
+    <div id="chatHint">chat</div>
     <div id="chatLog"></div>
     <div id="chatInputWrap">
       <input id="chatInput" type="text" placeholder="Say something..." maxlength="120" autocomplete="off" />
@@ -136,7 +273,7 @@ const WORLD_H = 2000;
 const GRID_SIZE = 80;
 const DRONE_CHANNEL = 'yiS12sB9DxAb9iIu';
 const DRONE_ROOM = 'observable-riot-world-v2';
-const SYNC_RATE = 80;
+const SYNC_RATE = 90;
 const BASE_SPEED = 220;
 const SPRINT_MULT = 1.85;
 const DASH_DIST = 140;
@@ -187,28 +324,15 @@ let lastTime = 0;
 let inGame = false;
 let chatOpen = false;
 let miniMapOpen = true;
-let WID = null;
-let isVisible = true;
 
 const keys = {};
 const remotes = new Map();
 
 const player = {
-  id: null,
-  name: '',
-  color: '#7090ff',
-  x: WORLD_W / 2,
-  y: WORLD_H / 2,
-  vx: 0,
-  vy: 0,
-  camX: 0,
-  camY: 0,
-  rCamX: 0,
-  rCamY: 0,
-  isSprinting: false,
-  dashCooldown: 0,
-  dashActive: false,
-  bubble: null,
+  id: null, name: '', color: '#7090ff',
+  x: WORLD_W / 2, y: WORLD_H / 2,
+  camX: 0, camY: 0, rCamX: 0, rCamY: 0,
+  isSprinting: false, dashCooldown: 0, dashActive: false, bubble: null
 };
 
 const nameModal = document.getElementById('nameModal');
@@ -230,11 +354,13 @@ function getOrCreateID() {
 }
 function getSavedName() { return localStorage.getItem('ow_player_name') || ''; }
 function saveName(n) { localStorage.setItem('ow_player_name', n); }
+
 function pickColor(id) {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
   return PLAYER_COLORS[h % PLAYER_COLORS.length];
 }
+
 function lerp(a, b, t) { return a + (b - a) * t; }
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -263,30 +389,16 @@ function addChatMsg(name, color, text) {
   div.innerHTML = `<span class="sender" style="color:${color}">${escHtml(name)}:</span> ${escHtml(text)}`;
   chatLog.appendChild(div);
   chatLog.scrollTop = chatLog.scrollHeight;
-  while (chatLog.children.length > 40) chatLog.removeChild(chatLog.firstChild);
+  while (chatLog.children.length > 50) chatLog.removeChild(chatLog.firstChild);
 }
+
 function addSystemMsg(text) {
   const div = document.createElement('div');
   div.className = 'chat-msg system';
   div.textContent = text;
   chatLog.appendChild(div);
   chatLog.scrollTop = chatLog.scrollHeight;
-  while (chatLog.children.length > 40) chatLog.removeChild(chatLog.firstChild);
-}
-
-function openChat() {
-  chatOpen = true;
-  chatInputWrap.classList.add('open');
-  chatInput.focus();
-}
-function closeChat() {
-  chatOpen = false;
-  chatInputWrap.classList.remove('open');
-  chatInput.blur();
-}
-function toggleMiniMap() {
-  miniMapOpen = !miniMapOpen;
-  miniMapEl.classList.toggle('hidden', !miniMapOpen);
+  while (chatLog.children.length > 50) chatLog.removeChild(chatLog.firstChild);
 }
 
 function broadcastState(extra = {}) {
@@ -300,7 +412,7 @@ function broadcastState(extra = {}) {
       color: player.color,
       x: Math.round(player.x),
       y: Math.round(player.y),
-      ...extra,
+      ...extra
     }
   });
 }
@@ -314,19 +426,19 @@ function broadcastChat(text) {
       id: player.id,
       name: player.name,
       color: player.color,
-      text,
+      text
     }
   });
 }
 
-function handleNetMessage(data) {
-  if (!data || !data.type) return;
-  if (data.id === player.id) return;
+function handleNetMessage(message) {
+  if (!message || !message.data) return;
+  const data = message.data;
+  if (!data.type || data.id === player.id) return;
 
   if (data.type === 'state') {
-    if (!remotes.has(data.id)) {
-      addSystemMsg(`${data.name} entered the world`);
-    }
+    if (!remotes.has(data.id)) addSystemMsg(`${data.name} entered the world`);
+
     const r = remotes.get(data.id) || {
       id: data.id,
       name: data.name,
@@ -335,12 +447,14 @@ function handleNetMessage(data) {
       y: data.y,
       rx: data.x,
       ry: data.y,
-      bubble: null,
+      bubble: null
     };
+
     r.name = data.name;
     r.color = data.color;
     r.rx = data.x;
     r.ry = data.y;
+
     remotes.set(data.id, r);
     updatePlayerCount();
   }
@@ -376,16 +490,16 @@ function connectDrone() {
       updatePlayerCount();
     });
 
-    room.on('data', data => handleNetMessage(data));
+    room.on('message', message => {
+      handleNetMessage(message);
+    });
 
-    if (room.onmembers) {
-      room.onmembers = members => {
-        updatePlayerCount();
-      };
-    }
+    room.on('members', members => {
+      updatePlayerCount();
+    });
 
     room.on('member_join', member => {
-      if (member && member.id !== player.id) updatePlayerCount();
+      updatePlayerCount();
     });
 
     room.on('member_leave', member => {
@@ -420,20 +534,24 @@ function joinGame() {
   addSystemMsg(`You joined as ${name}`);
   updatePlayerCount();
 }
+
 joinBtn.addEventListener('click', joinGame);
 nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') joinGame(); });
 
 document.addEventListener('keydown', e => {
   if (!inGame) return;
 
-  if (chatOpen) {
-    if (e.key === 'Escape') closeChat();
-    return;
+  if (e.key === 'Enter') {
+    if (document.activeElement !== chatInput) {
+      chatInput.focus();
+      return;
+    }
   }
+
+  if (document.activeElement === chatInput) return;
 
   keys[e.code] = true;
 
-  if (e.key === 'Enter') { openChat(); return; }
   if (e.key === 'm' || e.key === 'M') { toggleMiniMap(); return; }
   if (e.code === 'Space') { e.preventDefault(); tryDash(); return; }
 });
@@ -443,23 +561,27 @@ document.addEventListener('keyup', e => {
 });
 
 chatInput.addEventListener('keydown', e => {
-  if (e.key === 'Enter') { e.preventDefault(); sendChat(); }
-  if (e.key === 'Escape') { closeChat(); }
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    sendChat();
+  }
   e.stopPropagation();
 });
+
 chatSend.addEventListener('click', sendChat);
 
 function sendChat() {
   const text = chatInput.value.trim();
-  if (!text) {
-    closeChat();
-    return;
-  }
+  if (!text) return;
   chatInput.value = '';
-  closeChat();
   addChatMsg(player.name, player.color, text);
   player.bubble = { text, expires: Date.now() + BUBBLE_TTL };
   broadcastChat(text);
+}
+
+function toggleMiniMap() {
+  miniMapOpen = !miniMapOpen;
+  miniMapEl.classList.toggle('hidden', !miniMapOpen);
 }
 
 function tryDash() {
@@ -470,9 +592,11 @@ function tryDash() {
   if (keys['KeyA'] || keys['ArrowLeft']) dx -= 1;
   if (keys['KeyD'] || keys['ArrowRight']) dx += 1;
   if (dx === 0 && dy === 0) dy = -1;
+
   const len = Math.hypot(dx, dy) || 1;
   player.x = clamp(player.x + (dx / len) * DASH_DIST, 0, WORLD_W);
   player.y = clamp(player.y + (dy / len) * DASH_DIST, 0, WORLD_H);
+
   player.dashCooldown = DASH_COOLDOWN;
   player.dashActive = true;
   setTimeout(() => player.dashActive = false, 180);
@@ -480,11 +604,11 @@ function tryDash() {
 }
 
 function updatePlayer(dt) {
-  player.isSprinting = (!chatOpen) && (keys['ShiftLeft'] || keys['ShiftRight']);
+  player.isSprinting = (!chatInput.matches(':focus')) && (keys['ShiftLeft'] || keys['ShiftRight']);
   const speed = BASE_SPEED * (player.isSprinting ? SPRINT_MULT : 1);
 
   let dx = 0, dy = 0;
-  if (!chatOpen) {
+  if (document.activeElement !== chatInput) {
     if (keys['KeyW'] || keys['ArrowUp']) dy -= 1;
     if (keys['KeyS'] || keys['ArrowDown']) dy += 1;
     if (keys['KeyA'] || keys['ArrowLeft']) dx -= 1;
@@ -747,8 +871,6 @@ function gameLoop(ts) {
   const dt = Math.min((ts - lastTime) / 1000, 0.05);
   lastTime = ts;
   if (!inGame) return;
-
-  if (document.hidden !== isVisible) isVisible = !document.hidden;
 
   updatePlayer(dt);
 
