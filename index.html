@@ -3,908 +3,192 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Open World</title>
+<title>5 Circles Tabs</title>
 <style>
-  *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
-  html, body { width:100%; height:100%; overflow:hidden; background:#0a0a0f; }
-  body { font-family:'Segoe UI', system-ui, sans-serif; color:#fff; user-select:none; }
-
-  #gameCanvas {
-    display:block; position:fixed; inset:0;
-    width:100%; height:100%; cursor:crosshair;
+  html, body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: #0b0d14;
+    font-family: system-ui, sans-serif;
   }
-
-  #nameModal {
-    position:fixed; inset:0; z-index:1000;
-    background:rgba(0,0,0,0.85);
-    backdrop-filter:blur(8px);
-    display:flex; align-items:center; justify-content:center;
+  canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
   }
-  #nameModal.hidden { display:none; }
-
-  .modal-box {
-    background:#12121a;
-    border:1px solid rgba(255,255,255,0.1);
-    border-radius:12px;
-    padding:40px 48px;
-    width:360px;
-    box-shadow:0 0 60px rgba(80,120,255,0.15);
-    text-align:center;
-  }
-  .modal-box h1 {
-    font-size:1.5rem; font-weight:700; letter-spacing:3px;
-    text-transform:uppercase; color:#7090ff;
-    margin-bottom:8px;
-  }
-  .modal-box p {
-    font-size:0.8rem; color:#555; letter-spacing:2px;
-    margin-bottom:28px; text-transform:uppercase;
-  }
-  .modal-box input, #chatInput {
-    width:100%;
-    padding:12px 16px;
-    background:rgba(255,255,255,0.05);
-    border:1px solid rgba(255,255,255,0.12);
-    border-radius:6px;
-    color:#fff;
-    font-size:1rem;
-    font-family:inherit;
-    outline:none;
-  }
-  .modal-box input:focus, #chatInput:focus { border-color:#7090ff; }
-
-  .modal-box button, #chatSend {
-    border:none;
-    border-radius:6px;
-    color:#fff;
-    font-family:inherit;
-    cursor:pointer;
-    transition:background 0.2s, transform 0.1s;
-  }
-  .modal-box button {
-    width:100%;
-    padding:12px;
-    background:#7090ff;
-    font-size:0.9rem;
-    font-weight:700;
-    letter-spacing:2px;
-    text-transform:uppercase;
-  }
-  .modal-box button:hover, #chatSend:hover { background:#8aa0ff; }
-  .modal-box button:active, #chatSend:active { transform:scale(0.98); }
-
-  #hud {
-    position:fixed;
-    inset:0;
-    pointer-events:none;
-    z-index:100;
-  }
-
-  #playerCount {
-    position:absolute; top:16px; left:16px;
-    font-size:0.7rem; letter-spacing:2px;
-    color:rgba(255,255,255,0.3);
-    text-transform:uppercase;
-  }
-  #playerCount span { color:#7090ff; font-weight:700; }
-
-  #connStatus {
-    position:absolute; top:16px; right:16px;
-    font-size:0.65rem; letter-spacing:2px;
-    color:rgba(255,255,255,0.25);
-    text-transform:uppercase;
-    display:flex; align-items:center; gap:6px;
-  }
-  #connDot {
-    width:6px; height:6px; border-radius:50%;
-    background:#ff4444;
-    transition:background 0.3s;
-  }
-  #connDot.online { background:#44ff88; box-shadow:0 0 6px #44ff88; }
-
-  #zoneLabel {
-    position:absolute; top:50px; left:16px;
-    font-size:0.65rem; letter-spacing:3px;
-    color:rgba(255,255,255,0.2);
-    text-transform:uppercase;
-  }
-
-  #abilities {
-    position:absolute; bottom:140px; left:50%;
-    transform:translateX(-50%);
-    display:flex; gap:10px; align-items:center;
-  }
-  .ability-pill {
-    padding:4px 12px;
-    border-radius:20px;
-    border:1px solid rgba(255,255,255,0.1);
-    font-size:0.65rem;
-    letter-spacing:2px;
-    text-transform:uppercase;
-    color:rgba(255,255,255,0.3);
-  }
-  .ability-pill.active {
-    border-color:#7090ff;
-    color:#7090ff;
-    box-shadow:0 0 8px rgba(112,144,255,0.3);
-  }
-  .ability-pill.cooldown {
-    border-color:#ff6644;
-    color:#ff6644;
-  }
-
-  #controls {
-    position:absolute; bottom:16px; left:50%;
-    transform:translateX(-50%);
-    font-size:0.6rem; letter-spacing:2px;
-    color:rgba(255,255,255,0.15);
-    text-transform:uppercase;
-    text-align:center;
-  }
-
-  #miniMap {
-    position:absolute; bottom:16px; right:16px;
-    width:180px; height:120px;
-    background:rgba(0,0,0,0.7);
-    border:1px solid rgba(255,255,255,0.1);
-    border-radius:6px;
-    overflow:hidden;
-    pointer-events:none;
-  }
-  #miniMap.hidden { opacity:0; }
-  #miniMapCanvas { width:100%; height:100%; }
-  #miniMapLabel {
-    position:absolute; top:4px; left:8px;
-    font-size:0.55rem; letter-spacing:2px;
-    color:rgba(255,255,255,0.25);
-    text-transform:uppercase;
-  }
-
-  #chat {
-    position:absolute;
-    left:16px;
-    bottom:16px;
-    width:320px;
-    pointer-events:all;
-  }
-  #chatHint {
-    font-size:0.6rem;
-    letter-spacing:2px;
-    color:rgba(255,255,255,0.15);
-    text-transform:uppercase;
-    margin-bottom:4px;
-  }
-  #chatLog {
-    height:170px;
-    overflow-y:auto;
-    display:flex;
-    flex-direction:column;
-    gap:4px;
-    margin-bottom:8px;
-    scrollbar-width:none;
-  }
-  #chatLog::-webkit-scrollbar { display:none; }
-
-  .chat-msg {
-    font-size:0.72rem;
-    line-height:1.4;
-    padding:5px 10px;
-    background:rgba(0,0,0,0.55);
-    border-radius:4px;
-    border-left:2px solid rgba(255,255,255,0.1);
-    word-break:break-word;
-  }
-  .chat-msg .sender { font-weight:700; }
-  .chat-msg.system {
-    color:rgba(255,255,255,0.3);
-    border-left-color:transparent;
-    font-style:italic;
-  }
-
-  #chatInputWrap {
-    display:flex;
-    gap:6px;
-    pointer-events:all;
-  }
-  #chatInput {
-    flex:1;
-    padding:8px 12px;
-    background:rgba(0,0,0,0.7);
-    border:1px solid rgba(255,255,255,0.15);
-    border-radius:4px;
-    color:#fff;
-    font-size:0.8rem;
-  }
-  #chatSend {
-    padding:8px 14px;
-    background:#7090ff;
-    border:none;
-    border-radius:4px;
-    color:#fff;
-    font-size:0.75rem;
-    font-weight:700;
+  #info {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    color: rgba(255,255,255,0.8);
+    font-size: 14px;
+    background: rgba(0,0,0,0.35);
+    padding: 8px 10px;
+    border-radius: 8px;
+    backdrop-filter: blur(6px);
   }
 </style>
 </head>
 <body>
+<canvas id="c"></canvas>
+<div id="info">Open this page in up to 5 tabs. Each tab becomes a circle.</div>
 
-<canvas id="gameCanvas"></canvas>
-
-<div id="nameModal">
-  <div class="modal-box">
-    <h1>Open World</h1>
-    <p>multiplayer · dark zone</p>
-    <input id="nameInput" type="text" placeholder="Enter your name..." maxlength="20" autocomplete="off" />
-    <button id="joinBtn">Join World</button>
-  </div>
-</div>
-
-<div id="hud">
-  <div id="playerCount">Players: <span id="pcNum">0</span></div>
-  <div id="connStatus"><div id="connDot"></div><span id="connText">connecting</span></div>
-  <div id="zoneLabel">—</div>
-
-  <div id="abilities">
-    <div class="ability-pill" id="sprintPill">SHIFT sprint</div>
-    <div class="ability-pill" id="dashPill">SPACE dash</div>
-  </div>
-
-  <div id="controls">WASD / ↑↓←→ move · M map · ENTER chat</div>
-
-  <div id="miniMap">
-    <canvas id="miniMapCanvas"></canvas>
-    <div id="miniMapLabel">M — map</div>
-  </div>
-
-  <div id="chat">
-    <div id="chatHint">chat</div>
-    <div id="chatLog"></div>
-    <div id="chatInputWrap">
-      <input id="chatInput" type="text" placeholder="Say something..." maxlength="120" autocomplete="off" />
-      <button id="chatSend">Send</button>
-    </div>
-  </div>
-</div>
-
-<script src="https://cdn.scaledrone.com/scaledrone.min.js"></script>
 <script>
-const WORLD_W = 3000;
-const WORLD_H = 2000;
-const GRID_SIZE = 80;
-const DRONE_CHANNEL = 'yiS12sB9DxAb9iIu';
-const DRONE_ROOM = 'observable-riot-world-v2';
-const SYNC_RATE = 90;
-const BASE_SPEED = 220;
-const SPRINT_MULT = 1.85;
-const DASH_DIST = 140;
-const DASH_COOLDOWN = 1.2;
-const LERP_FACTOR = 0.14;
-const CAM_LERP = 0.09;
-const BUBBLE_TTL = 4000;
-
-const ZONES = [
-  { name:'NEON DISTRICT', x:0, y:0, w:900, h:700, color:'rgba(80,40,180,0.18)', border:'rgba(100,60,220,0.5)' },
-  { name:'RUST SECTOR', x:1000, y:0, w:800, h:600, color:'rgba(180,60,20,0.18)', border:'rgba(220,80,30,0.5)' },
-  { name:'CYBER HUB', x:2100, y:0, w:900, h:800, color:'rgba(0,160,140,0.18)', border:'rgba(0,200,180,0.5)' },
-  { name:'DEAD ZONE', x:0, y:900, w:700, h:800, color:'rgba(40,40,40,0.22)', border:'rgba(80,80,80,0.4)' },
-  { name:'GRID CORE', x:900, y:700, w:1100, h:700, color:'rgba(180,160,0,0.15)', border:'rgba(220,200,0,0.45)' },
-  { name:'ECHO FIELDS', x:2100, y:900, w:900, h:700, color:'rgba(0,80,180,0.18)', border:'rgba(0,100,220,0.5)' },
-  { name:'VOID EDGE', x:0, y:1700, w:3000, h:300, color:'rgba(100,0,40,0.2)', border:'rgba(160,0,60,0.5)' },
-];
-
-const ROADS = [
-  { x1:0, y1:700, x2:3000, y2:700 },
-  { x1:0, y1:1400, x2:3000, y2:1400 },
-  { x1:0, y1:350, x2:3000, y2:350 },
-  { x1:0, y1:1050, x2:3000, y2:1050 },
-  { x1:700, y1:0, x2:700, y2:2000 },
-  { x1:1400, y1:0, x2:1400, y2:2000 },
-  { x1:2100, y1:0, x2:2100, y2:2000 },
-  { x1:350, y1:0, x2:350, y2:2000 },
-  { x1:1050, y1:0, x2:1050, y2:2000 },
-  { x1:1750, y1:0, x2:1750, y2:2000 },
-  { x1:2450, y1:0, x2:2450, y2:2000 },
-  { x1:0, y1:0, x2:3000, y2:2000 },
-  { x1:3000, y1:0, x2:0, y2:2000 },
-];
-
-const PLAYER_COLORS = ['#7090ff','#ff6644','#44ffcc','#ff44aa','#ffcc44','#44aaff','#cc44ff','#44ff88','#ff8844','#88ff44'];
-
-const canvas = document.getElementById('gameCanvas');
+const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
-const miniCvs = document.getElementById('miniMapCanvas');
-const miniCtx = miniCvs.getContext('2d');
+const info = document.getElementById('info');
+
+const MAX_CIRCLES = 5;
+const CHANNEL_NAME = 'five-circles-tabs-v1';
+const TAB_TTL = 1500;
 
 let W = 0, H = 0;
-let drone = null;
-let room = null;
-let droneReady = false;
-let lastSync = 0;
-let lastTime = 0;
-let inGame = false;
-let chatOpen = false;
-let miniMapOpen = true;
+let myId = sessionStorage.getItem('tab_id');
+if (!myId) {
+  myId = 'tab_' + Math.random().toString(36).slice(2, 10) + '_' + Date.now().toString(36);
+  sessionStorage.setItem('tab_id', myId);
+}
 
-const keys = {};
-const remotes = new Map();
+const bc = new BroadcastChannel(CHANNEL_NAME);
+const tabs = new Map();
 
-const player = {
-  id: null, name: '', color: '#7090ff',
-  x: WORLD_W / 2, y: WORLD_H / 2,
-  camX: 0, camY: 0, rCamX: 0, rCamY: 0,
-  isSprinting: false, dashCooldown: 0, dashActive: false, bubble: null
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  W = Math.floor(window.innerWidth);
+  H = Math.floor(window.innerHeight);
+  canvas.width = Math.floor(W * dpr);
+  canvas.height = Math.floor(H * dpr);
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener('resize', resize);
+resize();
+
+function now() {
+  return Date.now();
+}
+
+function makeColor(i) {
+  const colors = ['#7090ff', '#ff6644', '#44ffcc', '#ff44aa', '#ffcc44'];
+  return colors[i % colors.length];
+}
+
+function heartbeat() {
+  bc.postMessage({
+    type: 'hello',
+    id: myId,
+    ts: now()
+  });
+}
+
+bc.onmessage = (event) => {
+  const msg = event.data;
+  if (!msg || !msg.type) return;
+
+  if (msg.id === myId) return;
+
+  if (msg.type === 'hello') {
+    tabs.set(msg.id, { id: msg.id, lastSeen: now() });
+  }
 };
 
-const nameModal = document.getElementById('nameModal');
-const nameInput = document.getElementById('nameInput');
-const joinBtn = document.getElementById('joinBtn');
-const chatInput = document.getElementById('chatInput');
-const chatInputWrap = document.getElementById('chatInputWrap');
-const chatLog = document.getElementById('chatLog');
-const chatSend = document.getElementById('chatSend');
-const miniMapEl = document.getElementById('miniMap');
-
-function getOrCreateID() {
-  let id = localStorage.getItem('ow_player_id');
-  if (!id) {
-    id = 'p_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-    localStorage.setItem('ow_player_id', id);
-  }
-  return id;
-}
-function getSavedName() { return localStorage.getItem('ow_player_name') || ''; }
-function saveName(n) { localStorage.setItem('ow_player_name', n); }
-
-function pickColor(id) {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  return PLAYER_COLORS[h % PLAYER_COLORS.length];
-}
-
-function lerp(a, b, t) { return a + (b - a) * t; }
-function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
-function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
-
-function setConnStatus(online) {
-  document.getElementById('connDot').classList.toggle('online', online);
-  document.getElementById('connText').textContent = online ? 'online' : 'offline';
-}
-
-function updatePlayerCount() {
-  document.getElementById('pcNum').textContent = remotes.size + (inGame ? 1 : 0);
-}
-
-function addChatMsg(name, color, text) {
-  const div = document.createElement('div');
-  div.className = 'chat-msg';
-  div.innerHTML = `<span class="sender" style="color:${color}">${escHtml(name)}:</span> ${escHtml(text)}`;
-  chatLog.appendChild(div);
-  chatLog.scrollTop = chatLog.scrollHeight;
-  while (chatLog.children.length > 50) chatLog.removeChild(chatLog.firstChild);
-}
-
-function addSystemMsg(text) {
-  const div = document.createElement('div');
-  div.className = 'chat-msg system';
-  div.textContent = text;
-  chatLog.appendChild(div);
-  chatLog.scrollTop = chatLog.scrollHeight;
-  while (chatLog.children.length > 50) chatLog.removeChild(chatLog.firstChild);
-}
-
-function broadcastState(extra = {}) {
-  if (!droneReady) return;
-  drone.publish({
-    room: DRONE_ROOM,
-    message: {
-      type: 'state',
-      id: player.id,
-      name: player.name,
-      color: player.color,
-      x: Math.round(player.x),
-      y: Math.round(player.y),
-      ...extra
-    }
-  });
-}
-
-function broadcastChat(text) {
-  if (!droneReady) return;
-  drone.publish({
-    room: DRONE_ROOM,
-    message: {
-      type: 'chat',
-      id: player.id,
-      name: player.name,
-      color: player.color,
-      text
-    }
-  });
-}
-
-function handleNetMessage(message) {
-  if (!message || !message.data) return;
-  const data = message.data;
-  if (!data.type || data.id === player.id) return;
-
-  if (data.type === 'state') {
-    if (!remotes.has(data.id)) addSystemMsg(`${data.name} entered the world`);
-
-    const r = remotes.get(data.id) || {
-      id: data.id,
-      name: data.name,
-      color: data.color,
-      x: data.x,
-      y: data.y,
-      rx: data.x,
-      ry: data.y,
-      bubble: null
-    };
-
-    r.name = data.name;
-    r.color = data.color;
-    r.rx = data.x;
-    r.ry = data.y;
-
-    remotes.set(data.id, r);
-    updatePlayerCount();
-  }
-
-  if (data.type === 'chat') {
-    addChatMsg(data.name, data.color, data.text);
-    if (remotes.has(data.id)) {
-      remotes.get(data.id).bubble = { text: data.text, expires: Date.now() + BUBBLE_TTL };
-    }
+function cleanupTabs() {
+  const t = now();
+  for (const [id, tab] of tabs.entries()) {
+    if (t - tab.lastSeen > TAB_TTL) tabs.delete(id);
   }
 }
 
-function connectDrone() {
-  drone = new Scaledrone(DRONE_CHANNEL);
-
-  drone.on('open', err => {
-    if (err) {
-      console.error(err);
-      setConnStatus(false);
-      return;
-    }
-    setConnStatus(true);
-
-    room = drone.subscribe(DRONE_ROOM);
-
-    room.on('open', err2 => {
-      if (err2) {
-        console.error(err2);
-        return;
-      }
-      droneReady = true;
-      broadcastState();
-      updatePlayerCount();
-    });
-
-    room.on('message', message => {
-      handleNetMessage(message);
-    });
-
-    room.on('members', members => {
-      updatePlayerCount();
-    });
-
-    room.on('member_join', member => {
-      updatePlayerCount();
-    });
-
-    room.on('member_leave', member => {
-      if (member && remotes.has(member.id)) {
-        const r = remotes.get(member.id);
-        addSystemMsg(`${r.name} left the world`);
-        remotes.delete(member.id);
-        updatePlayerCount();
-      }
-    });
-  });
-
-  drone.on('close', () => setConnStatus(false));
-  drone.on('error', () => setConnStatus(false));
-}
-
-function joinGame() {
-  const name = nameInput.value.trim() || 'Anonymous';
-  saveName(name);
-
-  player.id = getOrCreateID();
-  player.name = name;
-  player.color = pickColor(player.id);
-  player.x = 400 + Math.random() * (WORLD_W - 800);
-  player.y = 400 + Math.random() * (WORLD_H - 800);
-  player.rCamX = player.camX = player.x - W / 2;
-  player.rCamY = player.camY = player.y - H / 2;
-
-  nameModal.classList.add('hidden');
-  inGame = true;
-  connectDrone();
-  addSystemMsg(`You joined as ${name}`);
-  updatePlayerCount();
-}
-
-joinBtn.addEventListener('click', joinGame);
-nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') joinGame(); });
-
-document.addEventListener('keydown', e => {
-  if (!inGame) return;
-
-  if (e.key === 'Enter') {
-    if (document.activeElement !== chatInput) {
-      chatInput.focus();
-      return;
-    }
-  }
-
-  if (document.activeElement === chatInput) return;
-
-  keys[e.code] = true;
-
-  if (e.key === 'm' || e.key === 'M') { toggleMiniMap(); return; }
-  if (e.code === 'Space') { e.preventDefault(); tryDash(); return; }
-});
-
-document.addEventListener('keyup', e => {
-  keys[e.code] = false;
-});
-
-chatInput.addEventListener('keydown', e => {
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    sendChat();
-  }
-  e.stopPropagation();
-});
-
-chatSend.addEventListener('click', sendChat);
-
-function sendChat() {
-  const text = chatInput.value.trim();
-  if (!text) return;
-  chatInput.value = '';
-  addChatMsg(player.name, player.color, text);
-  player.bubble = { text, expires: Date.now() + BUBBLE_TTL };
-  broadcastChat(text);
-}
-
-function toggleMiniMap() {
-  miniMapOpen = !miniMapOpen;
-  miniMapEl.classList.toggle('hidden', !miniMapOpen);
-}
-
-function tryDash() {
-  if (!inGame || player.dashCooldown > 0) return;
-  let dx = 0, dy = 0;
-  if (keys['KeyW'] || keys['ArrowUp']) dy -= 1;
-  if (keys['KeyS'] || keys['ArrowDown']) dy += 1;
-  if (keys['KeyA'] || keys['ArrowLeft']) dx -= 1;
-  if (keys['KeyD'] || keys['ArrowRight']) dx += 1;
-  if (dx === 0 && dy === 0) dy = -1;
-
-  const len = Math.hypot(dx, dy) || 1;
-  player.x = clamp(player.x + (dx / len) * DASH_DIST, 0, WORLD_W);
-  player.y = clamp(player.y + (dy / len) * DASH_DIST, 0, WORLD_H);
-
-  player.dashCooldown = DASH_COOLDOWN;
-  player.dashActive = true;
-  setTimeout(() => player.dashActive = false, 180);
-  broadcastState();
-}
-
-function updatePlayer(dt) {
-  player.isSprinting = (!chatInput.matches(':focus')) && (keys['ShiftLeft'] || keys['ShiftRight']);
-  const speed = BASE_SPEED * (player.isSprinting ? SPRINT_MULT : 1);
-
-  let dx = 0, dy = 0;
-  if (document.activeElement !== chatInput) {
-    if (keys['KeyW'] || keys['ArrowUp']) dy -= 1;
-    if (keys['KeyS'] || keys['ArrowDown']) dy += 1;
-    if (keys['KeyA'] || keys['ArrowLeft']) dx -= 1;
-    if (keys['KeyD'] || keys['ArrowRight']) dx += 1;
-  }
-
-  if (dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
-
-  player.x = clamp(player.x + dx * speed * dt, 0, WORLD_W);
-  player.y = clamp(player.y + dy * speed * dt, 0, WORLD_H);
-  if (player.dashCooldown > 0) player.dashCooldown = Math.max(0, player.dashCooldown - dt);
-}
-
-function drawPlayerCircle(x, y, name, color, sprinting, dashing) {
-  const r = 14;
+function drawCircle(x, y, r, color, label, active) {
   ctx.save();
-
-  if (dashing) {
-    ctx.beginPath();
-    ctx.arc(x, y, r + 8, 0, Math.PI * 2);
-    ctx.strokeStyle = color + '66';
-    ctx.lineWidth = 3;
-    ctx.stroke();
-  }
-
-  ctx.shadowBlur = sprinting ? 24 : 14;
+  ctx.shadowBlur = active ? 24 : 12;
   ctx.shadowColor = color;
 
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fillStyle = color + '22';
   ctx.fill();
+  ctx.lineWidth = 3;
   ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
   ctx.stroke();
 
   ctx.beginPath();
-  ctx.arc(x, y, 4, 0, Math.PI * 2);
+  ctx.arc(x, y, 5, 0, Math.PI * 2);
   ctx.fillStyle = color;
   ctx.fill();
-  ctx.restore();
 
-  ctx.save();
-  ctx.font = '500 11px "Segoe UI", system-ui, sans-serif';
-  ctx.fillStyle = 'rgba(255,255,255,0.75)';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'bottom';
-  ctx.fillText(name, x, y - r - 5);
-  ctx.restore();
-}
-
-function drawBubble(x, y, text, color) {
-  const padding = 8;
-  const maxW = 160;
-  const r = 6;
-
-  ctx.save();
-  ctx.font = '12px "Segoe UI", system-ui, sans-serif';
-
-  const words = text.split(' ');
-  const lines = [];
-  let line = '';
-  for (const w of words) {
-    const test = line ? line + ' ' + w : w;
-    if (ctx.measureText(test).width > maxW - padding * 2) {
-      if (line) lines.push(line);
-      line = w;
-    } else {
-      line = test;
-    }
-  }
-  if (line) lines.push(line);
-
-  const lh = 16;
-  const bw = Math.min(maxW, Math.max(...lines.map(l => ctx.measureText(l).width)) + padding * 2);
-  const bh = lines.length * lh + padding * 2;
-  const bx = x - bw / 2;
-  const by = y - 14 - 10 - bh - 8;
-
-  ctx.beginPath();
-  roundRect(ctx, bx, by, bw, bh, r);
-  ctx.fillStyle = 'rgba(10,10,20,0.88)';
-  ctx.fill();
-  ctx.strokeStyle = color + 'aa';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.moveTo(x - 5, by + bh);
-  ctx.lineTo(x, by + bh + 7);
-  ctx.lineTo(x + 5, by + bh);
-  ctx.fillStyle = 'rgba(10,10,20,0.88)';
-  ctx.fill();
-
-  ctx.fillStyle = '#fff';
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.font = '600 14px system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
-  lines.forEach((l, i) => ctx.fillText(l, x, by + padding + i * lh));
+  ctx.fillText(label, x, y + r + 10);
   ctx.restore();
-}
-
-function drawBackground() {
-  ctx.fillStyle = '#0a0a0f';
-  ctx.fillRect(player.rCamX, player.rCamY, W, H);
-}
-
-function drawGrid() {
-  ctx.strokeStyle = 'rgba(255,255,255,0.025)';
-  ctx.lineWidth = 1;
-
-  const startX = Math.floor(player.rCamX / GRID_SIZE) * GRID_SIZE;
-  const startY = Math.floor(player.rCamY / GRID_SIZE) * GRID_SIZE;
-  const endX = player.rCamX + W + GRID_SIZE;
-  const endY = player.rCamY + H + GRID_SIZE;
-
-  ctx.beginPath();
-  for (let x = startX; x < endX; x += GRID_SIZE) {
-    ctx.moveTo(x, player.rCamY);
-    ctx.lineTo(x, player.rCamY + H);
-  }
-  for (let y = startY; y < endY; y += GRID_SIZE) {
-    ctx.moveTo(player.rCamX, y);
-    ctx.lineTo(player.rCamX + W, y);
-  }
-  ctx.stroke();
-}
-
-function drawZones() {
-  for (const z of ZONES) {
-    ctx.fillStyle = z.color;
-    ctx.fillRect(z.x, z.y, z.w, z.h);
-    ctx.strokeStyle = z.border;
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(z.x + 0.5, z.y + 0.5, z.w - 1, z.h - 1);
-    ctx.fillStyle = z.border;
-    ctx.font = '600 11px "Segoe UI", system-ui, sans-serif';
-    ctx.fillText(z.name, z.x + 14, z.y + 22);
-  }
-}
-
-function drawRoads() {
-  for (const r of ROADS) {
-    ctx.save();
-    ctx.shadowBlur = 18;
-    ctx.shadowColor = 'rgba(112,144,255,0.4)';
-    ctx.strokeStyle = 'rgba(112,144,255,0.08)';
-    ctx.lineWidth = 18;
-    ctx.beginPath();
-    ctx.moveTo(r.x1, r.y1);
-    ctx.lineTo(r.x2, r.y2);
-    ctx.stroke();
-
-    ctx.shadowBlur = 6;
-    ctx.shadowColor = 'rgba(112,144,255,0.6)';
-    ctx.strokeStyle = 'rgba(112,144,255,0.22)';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.restore();
-  }
-}
-
-function drawRemotePlayers() {
-  const now = Date.now();
-  for (const r of remotes.values()) {
-    drawPlayerCircle(r.x, r.y, r.name, r.color, false, false);
-    if (r.bubble && now < r.bubble.expires) drawBubble(r.x, r.y, r.bubble.text, r.color);
-  }
-}
-
-function drawLocalPlayer() {
-  const now = Date.now();
-  drawPlayerCircle(player.x, player.y, player.name, player.color, player.isSprinting, player.dashActive);
-  if (player.bubble && now < player.bubble.expires) drawBubble(player.x, player.y, player.bubble.text, player.color);
 }
 
 function render() {
+  cleanupTabs();
+
+  const visibleTabs = [
+    { id: myId, lastSeen: now(), self: true },
+    ...Array.from(tabs.values()).map(t => ({ ...t, self: false }))
+  ].slice(0, MAX_CIRCLES);
+
   ctx.clearRect(0, 0, W, H);
-  ctx.save();
-  ctx.translate(-player.rCamX, -player.rCamY);
-  drawBackground();
-  drawZones();
-  drawRoads();
-  drawGrid();
-  drawRemotePlayers();
-  drawLocalPlayer();
-  ctx.restore();
-}
 
-function renderMiniMap() {
-  const mW = miniCvs.width = miniMapEl.clientWidth;
-  const mH = miniCvs.height = miniMapEl.clientHeight;
-  const scX = mW / WORLD_W;
-  const scY = mH / WORLD_H;
+  const gap = W / (MAX_CIRCLES + 1);
+  const y = H / 2;
+  const r = Math.min(48, Math.max(26, Math.min(W, H) * 0.06));
 
-  miniCtx.clearRect(0, 0, mW, mH);
+  for (let i = 0; i < MAX_CIRCLES; i++) {
+    const x = gap * (i + 1);
 
-  for (const z of ZONES) {
-    miniCtx.fillStyle = z.color;
-    miniCtx.fillRect(z.x * scX, z.y * scY, z.w * scX, z.h * scY);
-  }
+    const entry = visibleTabs[i];
+    const occupied = !!entry;
 
-  miniCtx.strokeStyle = 'rgba(112,144,255,0.18)';
-  miniCtx.lineWidth = 0.5;
-  for (const r of ROADS) {
-    miniCtx.beginPath();
-    miniCtx.moveTo(r.x1 * scX, r.y1 * scY);
-    miniCtx.lineTo(r.x2 * scX, r.y2 * scY);
-    miniCtx.stroke();
-  }
-
-  for (const r of remotes.values()) {
-    miniCtx.beginPath();
-    miniCtx.arc(r.x * scX, r.y * scY, 2.5, 0, Math.PI * 2);
-    miniCtx.fillStyle = r.color;
-    miniCtx.fill();
-  }
-
-  miniCtx.save();
-  miniCtx.shadowBlur = 6;
-  miniCtx.shadowColor = player.color;
-  miniCtx.beginPath();
-  miniCtx.arc(player.x * scX, player.y * scY, 3.5, 0, Math.PI * 2);
-  miniCtx.fillStyle = player.color;
-  miniCtx.fill();
-  miniCtx.restore();
-
-  const vx = player.rCamX * scX;
-  const vy = player.rCamY * scY;
-  miniCtx.strokeStyle = 'rgba(255,255,255,0.15)';
-  miniCtx.lineWidth = 0.5;
-  miniCtx.strokeRect(vx, vy, W * scX, H * scY);
-}
-
-function updateHUD() {
-  let zoneName = '—';
-  for (const z of ZONES) {
-    if (player.x >= z.x && player.x <= z.x + z.w && player.y >= z.y && player.y <= z.y + z.h) {
-      zoneName = z.name;
-      break;
+    if (occupied) {
+      const color = entry.self ? '#44ff88' : makeColor(i);
+      const label = entry.self ? 'You' : 'Tab';
+      drawCircle(x, y, r, color, label, true);
+    } else {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([8, 8]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.font = '600 14px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText('Empty', x, y + r + 10);
+      ctx.restore();
     }
   }
-  document.getElementById('zoneLabel').textContent = zoneName;
 
-  document.getElementById('sprintPill').classList.toggle('active', player.isSprinting);
-
-  const dashPill = document.getElementById('dashPill');
-  if (player.dashCooldown > 0) {
-    dashPill.classList.add('cooldown');
-    dashPill.classList.remove('active');
-    dashPill.textContent = `SPACE dash (${player.dashCooldown.toFixed(1)}s)`;
-  } else {
-    dashPill.classList.remove('cooldown');
-    dashPill.classList.toggle('active', keys['Space']);
-    dashPill.textContent = 'SPACE dash';
-  }
+  info.textContent = `Open tabs detected: ${Math.min(1 + tabs.size, 5)} / 5`;
 }
 
-function gameLoop(ts) {
-  requestAnimationFrame(gameLoop);
-  const dt = Math.min((ts - lastTime) / 1000, 0.05);
-  lastTime = ts;
-  if (!inGame) return;
+setInterval(() => {
+  heartbeat();
+}, 500);
 
-  updatePlayer(dt);
-
-  lastSync += dt;
-  if (lastSync >= SYNC_RATE / 1000) {
-    lastSync = 0;
-    broadcastState();
-  }
-
-  for (const r of remotes.values()) {
-    r.x = lerp(r.x, r.rx, 1 - Math.pow(1 - LERP_FACTOR, dt * 60));
-    r.y = lerp(r.y, r.ry, 1 - Math.pow(1 - LERP_FACTOR, dt * 60));
-  }
-
-  const targetCamX = player.x - W / 2;
-  const targetCamY = player.y - H / 2;
-  player.rCamX = lerp(player.rCamX, targetCamX, 1 - Math.pow(1 - CAM_LERP, dt * 60));
-  player.rCamY = lerp(player.rCamY, targetCamY, 1 - Math.pow(1 - CAM_LERP, dt * 60));
-
+setInterval(() => {
+  heartbeat();
   render();
-  if (miniMapOpen) renderMiniMap();
-  updateHUD();
-}
+}, 60);
 
-function onResize() {
-  W = canvas.width = window.innerWidth;
-  H = canvas.height = window.innerHeight;
-}
-window.addEventListener('resize', onResize);
-onResize();
+window.addEventListener('beforeunload', () => {
+  bc.close();
+});
 
-nameInput.value = getSavedName();
-updatePlayerCount();
-requestAnimationFrame(ts => { lastTime = ts; gameLoop(ts); });
+heartbeat();
+render();
 </script>
 </body>
 </html>
