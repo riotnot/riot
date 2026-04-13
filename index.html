@@ -39,7 +39,7 @@
 <script src="https://cdn.scaledrone.com/scaledrone.min.js"></script>
 <script>
 const CHANNEL_ID = 'yiS12sB9DxAb9iIu';
-const ROOM_NAME = 'live-circles-room-v1';
+const ROOM_NAME = 'observable-live-circles-room-v1';
 const MAX_CIRCLES = 5;
 const HEARTBEAT_MS = 1000;
 const TIMEOUT_MS = 4000;
@@ -133,7 +133,7 @@ function render() {
 
   const list = [
     { id: me.id, self: true, lastSeen: now() },
-    ...Array.from(clients.values()).filter(c => c.id !== me.id).sort((a, b) => a.id.localeCompare(b.id))
+    ...Array.from(clients.values()).filter(c => c.id !== me.id)
   ].slice(0, MAX_CIRCLES);
 
   ctx.clearRect(0, 0, W, H);
@@ -172,7 +172,8 @@ function render() {
 }
 
 function handleMessage(message) {
-  const data = message.data || message;
+  if (!message || !message.data) return;
+  const data = message.data;
   if (!data || data.type !== 'presence') return;
   if (data.id === me.id) return;
   clients.set(data.id, { id: data.id, lastSeen: now() });
@@ -201,14 +202,22 @@ function start() {
     room.on('open', err2 => {
       if (err2) {
         console.error(err2);
+        info.textContent = 'Room error';
+        connected = false;
         return;
       }
       publishState();
     });
 
     room.on('message', handleMessage);
-    room.on('member_join', () => publishState());
-    room.on('members', () => publishState());
+
+    room.on('members', () => {
+      publishState();
+    });
+
+    room.on('member_join', () => {
+      publishState();
+    });
   });
 
   drone.on('close', () => {
@@ -216,13 +225,18 @@ function start() {
     info.textContent = 'Disconnected';
   });
 
-  drone.on('error', () => {
+  drone.on('error', err => {
     connected = false;
+    console.error(err);
     info.textContent = 'Error';
   });
 
+  setInterval(() => {
+    publishState();
+    render();
+  }, 1000 / 30);
+
   setInterval(publishState, HEARTBEAT_MS);
-  setInterval(render, 60);
 }
 
 start();
