@@ -408,7 +408,6 @@ if (!firebaseConfig) {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-const ROOM_ID = 'general-chat';
 const ROOM_KEY = 'nova-chat';
 const PRESENCE_TTL_MS = 15000;
 const HEARTBEAT_MS = 5000;
@@ -601,6 +600,9 @@ window.addEventListener('beforeunload', () => {
   if (presenceTimer) clearInterval(presenceTimer);
   leavePresence();
 });
+
+setOnline(false);
+onlineCount.textContent = '0 online';
 </script>
 </body>
 </html>
