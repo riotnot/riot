@@ -10,51 +10,69 @@
     width: 100%;
     height: 100%;
     overflow: hidden;
-    background: #0b0d14;
+    background: radial-gradient(circle at center, #111827 0%, #05070d 100%);
     font-family: system-ui, sans-serif;
   }
+
   canvas {
     display: block;
     width: 100vw;
     height: 100vh;
   }
-  #info {
+
+  #status {
     position: fixed;
     top: 12px;
     left: 12px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(0,0,0,0.35);
     color: rgba(255,255,255,0.85);
     font-size: 14px;
-    background: rgba(0,0,0,0.35);
-    padding: 8px 10px;
-    border-radius: 8px;
-    backdrop-filter: blur(6px);
-    z-index: 10;
+    backdrop-filter: blur(8px);
+    z-index: 5;
+  }
+
+  #hint {
+    position: fixed;
+    bottom: 12px;
+    left: 12px;
+    color: rgba(255,255,255,0.35);
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    z-index: 5;
   }
 </style>
 </head>
 <body>
-<canvas id="c"></canvas>
-<div id="info">Connecting...</div>
+<canvas id="canvas"></canvas>
+<div id="status">Connecting...</div>
+<div id="hint">Open up to 5 tabs or browsers. Each live client becomes one circle.</div>
 
 <script src="https://cdn.scaledrone.com/scaledrone.min.js"></script>
 <script>
 const CHANNEL_ID = 'yiS12sB9DxAb9iIu';
-const ROOM_NAME = 'observable-live-circles-room-v1';
+const ROOM_NAME = 'observable-live-circles-v2';
 const MAX_CIRCLES = 5;
 const HEARTBEAT_MS = 1000;
 const TIMEOUT_MS = 4000;
 
-const canvas = document.getElementById('c');
+const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
-const info = document.getElementById('info');
+const statusEl = document.getElementById('status');
 
 let W = 0, H = 0;
-let me = null;
 let drone = null;
 let room = null;
 let connected = false;
 
-const clients = new Map();
+const me = {
+  id: sessionStorage.getItem('live_circle_id') || ('c_' + Math.random().toString(36).slice(2, 10) + '_' + Date.now().toString(36))
+};
+sessionStorage.setItem('live_circle_id', me.id);
+
+const peers = new Map();
 
 function resize() {
   const dpr = window.devicePixelRatio || 1;
@@ -69,8 +87,8 @@ function resize() {
 window.addEventListener('resize', resize);
 resize();
 
-function makeId() {
-  return 'c_' + Math.random().toString(36).slice(2, 10) + '_' + Date.now().toString(36);
+function now() {
+  return Date.now();
 }
 
 function makeColor(i) {
@@ -78,13 +96,9 @@ function makeColor(i) {
   return colors[i % colors.length];
 }
 
-function now() {
-  return Date.now();
-}
-
-function drawCircle(x, y, r, color, label, active) {
+function drawCircle(x, y, r, color, label, glow) {
   ctx.save();
-  ctx.shadowBlur = active ? 24 : 12;
+  ctx.shadowBlur = glow ? 24 : 10;
   ctx.shadowColor = color;
 
   ctx.beginPath();
@@ -109,15 +123,21 @@ function drawCircle(x, y, r, color, label, active) {
   ctx.restore();
 }
 
-function pruneClients() {
+function prunePeers() {
   const t = now();
-  for (const [id, c] of clients.entries()) {
-    if (t - c.lastSeen > TIMEOUT_MS) clients.delete(id);
+  for (const [id, peer] of peers.entries()) {
+    if (t - peer.lastSeen > TIMEOUT_MS) peers.delete(id);
   }
 }
 
-function publishState() {
-  if (!connected || !room || !me) return;
+function updateStatus() {
+  statusEl.textContent = connected
+    ? `Connected • live ${Math.min(1 + peers.size, MAX_CIRCLES)} / ${MAX_CIRCLES}`
+    : 'Offline';
+}
+
+function publishPresence() {
+  if (!connected || !room) return;
   drone.publish({
     room: ROOM_NAME,
     message: {
@@ -128,23 +148,35 @@ function publishState() {
   });
 }
 
-function render() {
-  pruneClients();
+function handleMessage(message) {
+  if (!message || !message.data) return;
+  const data = message.data;
+  if (!data || data.type !== 'presence') return;
+  if (data.id === me.id) return;
 
-  const list = [
+  peers.set(data.id, {
+    id: data.id,
+    lastSeen: now()
+  });
+}
+
+function render() {
+  prunePeers();
+
+  const live = [
     { id: me.id, self: true, lastSeen: now() },
-    ...Array.from(clients.values()).filter(c => c.id !== me.id)
+    ...Array.from(peers.values())
   ].slice(0, MAX_CIRCLES);
 
   ctx.clearRect(0, 0, W, H);
 
   const gap = W / (MAX_CIRCLES + 1);
   const y = H / 2;
-  const r = Math.min(50, Math.max(28, Math.min(W, H) * 0.06));
+  const r = Math.min(52, Math.max(28, Math.min(W, H) * 0.07));
 
   for (let i = 0; i < MAX_CIRCLES; i++) {
     const x = gap * (i + 1);
-    const entry = list[i];
+    const entry = live[i];
 
     if (entry) {
       const color = entry.self ? '#44ff88' : makeColor(i);
@@ -168,78 +200,73 @@ function render() {
     }
   }
 
-  info.textContent = `Live clients: ${Math.min(list.length, MAX_CIRCLES)} / ${MAX_CIRCLES}` + (connected ? '' : ' • offline');
+  updateStatus();
 }
 
-function handleMessage(message) {
-  if (!message || !message.data) return;
-  const data = message.data;
-  if (!data || data.type !== 'presence') return;
-  if (data.id === me.id) return;
-  clients.set(data.id, { id: data.id, lastSeen: now() });
-}
-
-function start() {
-  me = {
-    id: sessionStorage.getItem('live_circle_id') || makeId()
-  };
-  sessionStorage.setItem('live_circle_id', me.id);
-
+function connect() {
   drone = new Scaledrone(CHANNEL_ID);
 
   drone.on('open', err => {
     if (err) {
       console.error(err);
-      info.textContent = 'Connection error';
+      statusEl.textContent = 'Connection error';
+      connected = false;
       return;
     }
 
     connected = true;
-    info.textContent = 'Connected';
+    updateStatus();
 
     room = drone.subscribe(ROOM_NAME);
 
     room.on('open', err2 => {
       if (err2) {
         console.error(err2);
-        info.textContent = 'Room error';
+        statusEl.textContent = 'Room error';
         connected = false;
         return;
       }
-      publishState();
+      publishPresence();
     });
 
     room.on('message', handleMessage);
 
     room.on('members', () => {
-      publishState();
+      publishPresence();
     });
 
     room.on('member_join', () => {
-      publishState();
+      publishPresence();
+    });
+
+    room.on('member_leave', member => {
+      if (member && peers.has(member.id)) {
+        peers.delete(member.id);
+      }
     });
   });
 
   drone.on('close', () => {
     connected = false;
-    info.textContent = 'Disconnected';
+    updateStatus();
   });
 
   drone.on('error', err => {
-    connected = false;
     console.error(err);
-    info.textContent = 'Error';
+    connected = false;
+    updateStatus();
   });
 
   setInterval(() => {
-    publishState();
+    publishPresence();
+  }, HEARTBEAT_MS);
+
+  setInterval(() => {
     render();
   }, 1000 / 30);
-
-  setInterval(publishState, HEARTBEAT_MS);
 }
 
-start();
+connect();
 render();
 </script>
 </body>
