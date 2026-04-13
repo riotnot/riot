@@ -396,7 +396,6 @@ import {
   setDoc,
   serverTimestamp,
   deleteDoc,
-  getDocs,
   where
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
@@ -429,6 +428,7 @@ let joined = false;
 let unsubMessages = null;
 let unsubPresence = null;
 let presenceTimer = null;
+
 let me = {
   id: sessionStorage.getItem('nova_chat_id') || ('u_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36)),
   name: localStorage.getItem('nova_chat_name') || ''
@@ -457,11 +457,6 @@ function timeLabel(ts) {
 function setOnline(online) {
   dot.classList.toggle('online', online);
   statusText.textContent = online ? 'online' : 'offline';
-}
-
-function updateCounts(count = 0) {
-  onlineCount.textContent = `${count} online`;
-  subText.textContent = joined ? 'Connected and ready' : 'Waiting to connect';
 }
 
 function appendMessage({ name, text, color, self = false, system = false, ts = null }) {
@@ -531,14 +526,14 @@ async function joinChat() {
 
   unsubPresence = onSnapshot(
     query(presenceCol, where('online', '==', true)),
-    async snapshot => {
+    snapshot => {
       const cutoff = Date.now() - PRESENCE_TTL_MS;
       let count = 0;
       snapshot.forEach(d => {
         const p = d.data();
         if ((p.lastSeen || 0) >= cutoff) count++;
       });
-      updateCounts(count);
+      onlineCount.textContent = `${count} online`;
     },
     err => {
       console.error(err);
@@ -606,9 +601,6 @@ window.addEventListener('beforeunload', () => {
   if (presenceTimer) clearInterval(presenceTimer);
   leavePresence();
 });
-
-setOnline(false);
-updateCounts(0);
 </script>
 </body>
 </html>
