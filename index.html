@@ -382,10 +382,37 @@
   </div>
 </div>
 
-<script src="https://cdn.scaledrone.com/scaledrone.min.js"></script>
-<script>
-const CHANNEL_ID = 'yiS12sB9DxAb9iIu';
-const ROOM_NAME = 'general-chat';
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  query,
+  orderBy,
+  limit,
+  onSnapshot,
+  doc,
+  setDoc,
+  serverTimestamp,
+  deleteDoc,
+  getDocs,
+  where
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+const firebaseConfig = window.__firebase_config ? JSON.parse(window.__firebase_config) : null;
+if (!firebaseConfig) {
+  document.getElementById('subText').textContent = 'Missing __firebase_config';
+  throw new Error('__firebase_config is required');
+}
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const ROOM_ID = 'general-chat';
+const ROOM_KEY = 'nova-chat';
+const PRESENCE_TTL_MS = 15000;
+const HEARTBEAT_MS = 5000;
 
 const statusText = document.getElementById('statusText');
 const subText = document.getElementById('subText');
@@ -398,9 +425,10 @@ const msgInput = document.getElementById('msgInput');
 const sendBtn = document.getElementById('sendBtn');
 const messagesEl = document.getElementById('messages');
 
-let drone = null;
-let room = null;
 let joined = false;
+let unsubMessages = null;
+let unsubPresence = null;
+let presenceTimer = null;
 let me = {
   id: sessionStorage.getItem('nova_chat_id') || ('u_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36)),
   name: localStorage.getItem('nova_chat_name') || ''
@@ -408,7 +436,9 @@ let me = {
 sessionStorage.setItem('nova_chat_id', me.id);
 nameInput.value = me.name;
 
-const peers = new Map();
+const presenceDoc = doc(db, 'rooms', ROOM_KEY, 'presence', me.id);
+const messagesCol = collection(db, 'rooms', ROOM_KEY, 'messages');
+const presenceCol = collection(db, 'rooms', ROOM_KEY, 'presence');
 
 function saveName(n) {
   localStorage.setItem('nova_chat_name', n);
@@ -418,8 +448,10 @@ function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-function timeLabel() {
-  return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+function timeLabel(ts) {
+  if (!ts) return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const d = ts?.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
 function setOnline(online) {
@@ -427,13 +459,12 @@ function setOnline(online) {
   statusText.textContent = online ? 'online' : 'offline';
 }
 
-function updateCounts() {
-  const count = joined ? Math.max(1, peers.size + 1) : peers.size;
+function updateCounts(count = 0) {
   onlineCount.textContent = `${count} online`;
   subText.textContent = joined ? 'Connected and ready' : 'Waiting to connect';
 }
 
-function appendMessage({ name, text, color, self = false, system = false }) {
+function appendMessage({ name, text, color, self = false, system = false, ts = null }) {
   const div = document.createElement('div');
   div.className = 'message' + (self ? ' me' : '') + (system ? ' system' : '');
 
@@ -443,7 +474,7 @@ function appendMessage({ name, text, color, self = false, system = false }) {
     div.innerHTML = `
       <div class="meta">
         <span class="sender" style="color:${color || '#fff'}">${esc(name)}</span>
-        <span class="time">${timeLabel()}</span>
+        <span class="time">${timeLabel(ts)}</span>
       </div>
       <div class="bubble">${esc(text)}</div>
     `;
@@ -453,104 +484,80 @@ function appendMessage({ name, text, color, self = false, system = false }) {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
-function connect() {
-  drone = new Scaledrone(CHANNEL_ID);
+async function joinChat() {
+  const name = nameInput.value.trim() || 'Anonymous';
+  me.name = name;
+  saveName(name);
 
-  drone.on('open', err => {
-    if (err) {
-      console.error(err);
-      setOnline(false);
-      subText.textContent = 'Connection error';
-      return;
-    }
+  if (joined) return;
+  joined = true;
 
-    setOnline(true);
-    subText.textContent = 'Connected';
+  msgInput.disabled = false;
+  sendBtn.disabled = false;
+  joinBtn.textContent = 'Joined';
+  joinBtn.disabled = true;
 
-    room = drone.subscribe(ROOM_NAME);
+  setOnline(true);
+  subText.textContent = 'Connected and ready';
+  appendMessage({ system: true, text: 'You joined the chat.' });
 
-    room.on('open', err2 => {
-      if (err2) {
-        console.error(err2);
-        setOnline(false);
-        subText.textContent = 'Room error';
-        return;
-      }
-      joined = true;
-      msgInput.disabled = false;
-      sendBtn.disabled = false;
-      joinBtn.textContent = 'Joined';
-      joinBtn.disabled = true;
-      appendMessage({ system: true, text: 'You joined the chat.' });
-      publishPresence();
-      updateCounts();
-    });
+  await setDoc(presenceDoc, {
+    id: me.id,
+    name: me.name,
+    online: true,
+    lastSeen: Date.now()
+  }, { merge: true });
 
-    room.on('members', members => {
-      peers.clear();
-      for (const member of members) {
-        if (member.id !== me.id) peers.set(member.id, member);
-      }
-      updateCounts();
-    });
-
-    room.on('member_join', member => {
-      if (member.id !== me.id) {
-        peers.set(member.id, member);
-        updateCounts();
-        appendMessage({ system: true, text: 'Someone joined the room.' });
-      }
-    });
-
-    room.on('member_leave', member => {
-      if (member.id !== me.id) {
-        peers.delete(member.id);
-        updateCounts();
-        appendMessage({ system: true, text: 'Someone left the room.' });
-      }
-    });
-
-    room.on('message', message => {
-      const data = message.data || {};
-      if (!data || data.type !== 'chat') return;
-      if (data.id === me.id) return;
-      appendMessage({
-        name: data.name || 'Anonymous',
-        text: data.text || '',
-        color: data.color || '#7c8cff'
+  unsubMessages = onSnapshot(
+    query(messagesCol, orderBy('createdAt', 'asc'), limit(200)),
+    snapshot => {
+      messagesEl.innerHTML = '';
+      snapshot.forEach(docSnap => {
+        const m = docSnap.data();
+        appendMessage({
+          name: m.name || 'Anonymous',
+          text: m.text || '',
+          color: m.color || '#7c8cff',
+          self: m.uid === me.id,
+          ts: m.createdAt
+        });
       });
-    });
-  });
-
-  drone.on('close', () => {
-    setOnline(false);
-    subText.textContent = 'Disconnected';
-  });
-
-  drone.on('error', err => {
-    console.error(err);
-    setOnline(false);
-    subText.textContent = 'Connection error';
-  });
-
-  setInterval(() => {
-    if (joined) publishPresence();
-  }, 3000);
-}
-
-function publishPresence() {
-  if (!drone || !joined) return;
-  drone.publish({
-    room: ROOM_NAME,
-    message: {
-      type: 'presence',
-      id: me.id,
-      name: me.name || 'Anonymous'
+    },
+    err => {
+      console.error(err);
+      subText.textContent = 'Chat listener error';
     }
-  });
+  );
+
+  unsubPresence = onSnapshot(
+    query(presenceCol, where('online', '==', true)),
+    async snapshot => {
+      const cutoff = Date.now() - PRESENCE_TTL_MS;
+      let count = 0;
+      snapshot.forEach(d => {
+        const p = d.data();
+        if ((p.lastSeen || 0) >= cutoff) count++;
+      });
+      updateCounts(count);
+    },
+    err => {
+      console.error(err);
+      subText.textContent = 'Presence listener error';
+    }
+  );
+
+  presenceTimer = setInterval(async () => {
+    if (!joined) return;
+    await setDoc(presenceDoc, {
+      id: me.id,
+      name: me.name,
+      online: true,
+      lastSeen: Date.now()
+    }, { merge: true });
+  }, HEARTBEAT_MS);
 }
 
-function sendMessage() {
+async function sendMessage() {
   const text = msgInput.value.trim();
   if (!text || !joined) return;
 
@@ -558,36 +565,27 @@ function sendMessage() {
   me.name = name;
   saveName(name);
 
-  appendMessage({
+  msgInput.value = '';
+  msgInput.focus();
+
+  await addDoc(messagesCol, {
+    uid: me.id,
     name,
     text,
     color: '#7c8cff',
-    self: true
+    createdAt: serverTimestamp()
   });
-
-  drone.publish({
-    room: ROOM_NAME,
-    message: {
-      type: 'chat',
-      id: me.id,
-      name,
-      text,
-      color: '#7c8cff'
-    }
-  });
-
-  msgInput.value = '';
-  msgInput.focus();
 }
 
-joinBtn.addEventListener('click', () => {
-  const name = nameInput.value.trim() || 'Anonymous';
-  me.name = name;
-  saveName(name);
-  if (!drone) connect();
-  publishPresence();
-});
+async function leavePresence() {
+  try {
+    if (joined) {
+      await deleteDoc(presenceDoc);
+    }
+  } catch {}
+}
 
+joinBtn.addEventListener('click', joinChat);
 sendBtn.addEventListener('click', sendMessage);
 
 msgInput.addEventListener('keydown', e => {
@@ -600,13 +598,17 @@ msgInput.addEventListener('keydown', e => {
 nameInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') {
     e.preventDefault();
-    if (!drone) connect();
-    else publishPresence();
+    joinChat();
   }
 });
 
-updateCounts();
-connect();
+window.addEventListener('beforeunload', () => {
+  if (presenceTimer) clearInterval(presenceTimer);
+  leavePresence();
+});
+
+setOnline(false);
+updateCounts(0);
 </script>
 </body>
 </html>
