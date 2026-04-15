@@ -74,14 +74,13 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      transition: transform .16s ease, opacity .16s ease, text-shadow .16s ease;
+      transition: transform .16s ease, opacity .16s ease;
       opacity: .92;
       will-change: transform;
     }
     .link:hover {
       transform: scale(1.14);
       opacity: 1;
-      text-shadow: 0 0 10px rgba(255,255,255,.3), 0 0 26px rgba(255,255,255,.12);
     }
     .link:active { transform: scale(1.06); }
     .enter-hide .center {
@@ -110,7 +109,6 @@
       scene.classList.add('enter-hide');
       setTimeout(() => {
         links.classList.add('show');
-        window.location.href = "https://guns.lol/riotnot";
       }, 150);
     });
   </script>
